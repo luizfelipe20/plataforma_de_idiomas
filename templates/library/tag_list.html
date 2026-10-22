@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tags{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Tags</h1>
+    <p>Organize os textos por assunto, dificuldade ou objetivo. Excluir uma tag remove apenas as associações.</p>
+  </div>
+</div>
+<div class="grid grid-2">
+  <section class="card">
+    <div class="card-header"><h2>Todas as tags</h2><span class="muted">{{ tags|length }}</span></div>
+    <div class="table-wrap">
+      <table class="table-stack">
+        <thead><tr><th>Nome</th><th class="num">Textos</th><th><span class="sr-only">Ações</span></th></tr></thead>
+        <tbody>
+        {% for tag in tags %}
+          <tr data-edit-row>
+            <td class="cell-title">
+              <span data-edit-view><a class="badge tag" href="{% url 'library:text_list' %}?tag={{ tag.pk }}">{{ tag.name }}</a></span>
+              <form data-edit-form class="hidden inline-form" method="post" action="{% url 'library:tag_update' tag.pk %}">
+                {% csrf_token %}
+                <div class="field"><input type="text" name="name" value="{{ tag.name }}" maxlength="50" required aria-label="Novo nome para {{ tag.name }}"></div>
+                <button class="btn btn-sm btn-primary" type="submit">Salvar</button>
+              </form>
+            </td>
+            <td class="num">{{ tag.text_count }}</td>
+            <td class="cell-actions">
+              <div class="btn-group btn-group-end">
+                <button class="btn btn-sm" type="button" data-edit-toggle aria-label="Renomear {{ tag.name }}">Renomear</button>
+                <a class="btn btn-sm btn-danger" href="{% url 'library:tag_delete' tag.pk %}" aria-label="Excluir {{ tag.name }}">Excluir</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="empty">Nenhuma tag criada.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Nova tag</h2>
+    <form method="post" class="inline-form">
+      {% csrf_token %}
+      <div class="field"><label class="sr-only" for="{{ form.name.id_for_label }}">Nome da nova tag</label>{{ form.name }}{{ form.name.errors }}</div>
+      <button class="btn btn-primary" type="submit">Criar</button>
+    </form>
+    <p class="muted">Sugestões: Tecnologia, Trabalho, Viagens, Vocabulário, Gramática, Negócios, Iniciante, Avançado. Você também pode criar tags diretamente no cadastro de um texto.</p>
+  </section>
+</div>
+{% endblock %}

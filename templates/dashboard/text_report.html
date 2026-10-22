@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Desempenho · {{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'dashboard:index' %}">Dashboard</a> / Relatório</div>
+    <h1>{{ text.title }}</h1>
+    <div class="btn-group">
+      <span class="badge">{{ text.source_language|lang_name }}</span>
+      {% include "partials/tags.html" with tags=text.tags.all %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-primary" href="{% url 'library:study' text.pk %}">Estudar</a>
+    <a class="btn" href="{{ text.get_absolute_url }}">Abrir texto</a>
+    <form method="post" action="{% url 'quizzes:quiz_generate' text.pk %}">
+      {% csrf_token %}<input type="hidden" name="next" value="start">
+      <button class="btn" type="submit" data-loading-text="Gerando…">+ Novo quiz</button>
+    </form>
+  </div>
+</div>
+
+<form class="card filters" method="get">
+  <div class="field narrow">
+    <label for="periodo">Período</label>
+    <select id="periodo" name="periodo" onchange="this.form.submit()">
+      {% for key, label in periods %}{% if key != "custom" %}<option value="{{ key }}" {% if filters.period == key %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="kpis stack-top">
+  <div class="kpi"><div class="kpi-label">Quizzes</div><div class="kpi-value">{{ quizzes|length }}</div></div>
+  <div class="kpi"><div class="kpi-label">Tentativas concluídas</div><div class="kpi-value">{{ summary.attempts }}</div></div>
+  <div class="kpi"><div class="kpi-label">Aproveitamento médio</div><div class="kpi-value {{ summary.avg_score|score_class }}">{% if summary.avg_score is not None %}{{ summary.avg_score|floatformat:0 }}%{% else %}—{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Acertos / erros médios</div><div class="kpi-value">{% if summary.attempts %}{{ summary.avg_correct|floatformat:1 }} / {{ summary.avg_wrong|floatformat:1 }}{% else %}—{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Melhor resultado</div><div class="kpi-value {{ summary.best.score|score_class }}">{% if summary.best %}{{ summary.best.score }}%{% else %}—{% endif %}</div><div class="kpi-hint">{% if summary.best %}{{ summary.best.quiz.label }} · {{ summary.best.completed_at|date:"d/m/Y" }}{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Pior resultado</div><div class="kpi-value {{ summary.worst.score|score_class }}">{% if summary.worst %}{{ summary.worst.score }}%{% else %}—{% endif %}</div><div class="kpi-hint">{% if summary.worst %}{{ summary.worst.quiz.label }} · {{ summary.worst.completed_at|date:"d/m/Y" }}{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Última atividade</div><div class="kpi-value kpi-value-sm">{% if summary.last_activity %}{{ summary.last_activity|date:"d/m/Y H:i" }}{% else %}—{% endif %}</div></div>
+</div>
+
+<div class="grid grid-2 stack-top">
+  <section class="card">
+    <div class="card-header"><h2>Evolução das pontuações</h2><small>cada ponto é uma tentativa</small></div>
+    <div class="chart" data-chart="line" data-source="evolution-data" data-max="100"
+      data-series='[{"key":"scores","label":"Pontuação","color":"--series-1","unit":""}]'
+      data-empty="Nenhuma tentativa concluída ainda." aria-label="Evolução das pontuações"></div>
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Comparação entre quizzes</h2><small>aproveitamento médio</small></div>
+    <div class="chart" data-chart="bar" data-source="comparison-data" data-max="100" data-unit="%"
+      data-series='[{"key":"avg_score","label":"Média","color":"--series-1"}]'
+      data-empty="Nenhum quiz gerado." aria-label="Média por quiz"></div>
+  </section>
+</div>
+
+<section class="card stack-top">
+  <div class="card-header"><h2>Quizzes deste texto</h2></div>
+  {% include "quizzes/_quiz_table.html" with quizzes=quiz_stats %}
+</section>
+
+<section class="card">
+  <div class="card-header"><h2>Todas as tentativas concluídas</h2></div>
+  <div class="table-wrap">
+    <table class="table-stack table-stack-wide">
+      <thead><tr><th>Data</th><th>Quiz</th><th>Modo</th><th class="num">Acertos</th><th class="num">Erros</th><th class="num">Pontuação</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for a in attempts reversed %}
+        <tr>
+          <td>{{ a.completed_at|date:"d/m/Y H:i" }}</td>
+          <td><a href="{{ a.quiz.get_absolute_url }}">{{ a.quiz.label }}</a></td>
+          <td>{{ a.get_mode_display }}</td>
+          <td class="num">{{ a.correct_count }}</td>
+          <td class="num">{{ a.wrong_count }}</td>
+          <td class="num"><span class="{{ a.score|score_class }}">{{ a.score }}</span></td>
+          <td class="cell-actions"><a class="btn btn-sm" href="{{ a.get_absolute_url }}">Ver correção</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="empty">Nenhuma tentativa concluída no período.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ evolution|json_script:"evolution-data" }}
+{{ comparison|json_script:"comparison-data" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/charts.js' %}"></script>{% endblock %}

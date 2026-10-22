@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Criar conta{% endblock %}
+{% block auth %}
+<main class="auth-page" id="conteudo" tabindex="-1">
+  <div class="card auth-card">
+    <div class="brand"><span class="brand-mark">L</span> LinguaLab</div>
+    <h1>Criar conta</h1>
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+        {% if field.help_text %}<small>{{ field.help_text|safe }}</small>{% endif %}
+      </div>
+      {% endfor %}
+      <button class="btn btn-primary" type="submit">Criar conta</button>
+    </form>
+    <p class="muted">Já tem conta? <a href="{% url 'accounts:login' %}">Entrar</a>.</p>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Biblioteca{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Biblioteca de textos</h1>
+    <p>{{ page.paginator.count }} de {{ total }} texto{{ total|pluralize }} exibido{{ total|pluralize }}.</p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'library:text_create' %}">+ Novo texto</a>
+</div>
+
+<div class="library">
+  <aside class="card tag-sidebar">
+    <div class="card-header"><h2>Tags</h2><a class="btn btn-sm btn-ghost" href="{% url 'library:tag_list' %}">Gerenciar</a></div>
+    <ul>
+      <li><a href="?{% query_transform tag='' page='' %}" class="{% if not active.tags %}active{% endif %}"><span>Todas</span><span class="muted">{{ total }}</span></a></li>
+      {% for tag in tags %}
+      <li><a href="?tag={{ tag.pk }}" class="{% if tag.pk in active.tags %}active{% endif %}"><span>{{ tag.name }}</span><span class="muted">{{ tag.text_count }}</span></a></li>
+      {% empty %}
+      <li class="muted">Nenhuma tag ainda.</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <section>
+    {% with has_filters=active.q|default:active.lang|default:active.tags %}
+    <details class="card filter-panel" open data-collapse-mobile {% if has_filters %}data-has-filters{% endif %}>
+    <summary>Buscar e filtrar{% if has_filters %} <span class="badge tag">ativos</span>{% endif %}</summary>
+    <form class="filters" method="get" role="search">
+      <div class="field">
+        <label for="q">Buscar</label>
+        <input type="search" id="q" name="q" value="{{ active.q }}" placeholder="Título ou conteúdo…">
+      </div>
+      <div class="field">
+        <label for="lang">Idioma</label>
+        <select id="lang" name="lang">
+          <option value="">Todos</option>
+          {% for code, name in language_choices %}<option value="{{ code }}" {% if active.lang == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="sort">Ordenar por</label>
+        <select id="sort" name="sort">
+          {% for key, label in sort_options %}<option value="{{ key }}" {% if active.sort == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      {% if tags %}
+      <div class="field field-full">
+        <label>Tags <small>(combine várias)</small></label>
+        <div class="checkbox-list">
+          {% for tag in tags %}
+          <label class="chip-check"><input type="checkbox" name="tag" value="{{ tag.pk }}" {% if tag.pk in active.tags %}checked{% endif %}> {{ tag.name }} <small>({{ tag.text_count }})</small></label>
+          {% endfor %}
+        </div>
+        <div class="btn-group">
+          <label class="chip-check"><input type="radio" name="match" value="any" {% if active.match != "all" %}checked{% endif %}> Qualquer tag</label>
+          <label class="chip-check"><input type="radio" name="match" value="all" {% if active.match == "all" %}checked{% endif %}> Todas as tags</label>
+        </div>
+      </div>
+      {% endif %}
+      <div class="btn-group">
+        <button class="btn btn-primary" type="submit">Filtrar</button>
+        <a class="btn" href="{% url 'library:text_list' %}">Limpar</a>
+      </div>
+    </form>
+    </details>
+    {% endwith %}
+
+    <div class="text-cards">
+      {% for text in page %}
+      <article class="card text-card">
+        <div class="btn-group card-badges">
+          <span class="badge">{{ text.source_language|lang_name }} → {{ text.target_language|lang_name }}</span>
+          {% if text.status != "ready" %}<span class="badge {% if text.status == 'error' %}badge-bad{% else %}badge-mid{% endif %}">{{ text.get_status_display }}</span>
+          {% elif text.translation_is_simulated %}<span class="badge badge-mid" title="Traduzido sem IA. Abra o texto para traduzir com IA.">Tradução simulada</span>{% endif %}
+        </div>
+        <h3><a href="{{ text.get_absolute_url }}">{{ text.title }}</a></h3>
+        <p class="excerpt">{{ text.content|truncatechars:220 }}</p>
+        {% include "partials/tags.html" with tags=text.tags.all %}
+        <div class="meta">
+          <span>{{ text.quiz_count }} quiz{{ text.quiz_count|pluralize:"zes" }}</span>
+          <span>{{ text.attempt_count }} tentativa{{ text.attempt_count|pluralize }}</span>
+          <span>Atualizado {{ text.updated_at|date:"d/m/Y" }}</span>
+        </div>
+        <div class="card-actions">
+          <a class="btn btn-sm btn-primary" href="{% url 'library:study' text.pk %}">Estudar</a>
+          <a class="btn btn-sm" href="{% url 'library:study' text.pk %}?modo=reading_audio" aria-label="Ouvir {{ text.title }}">🔊 Ouvir</a>
+          <a class="btn btn-sm" href="{{ text.get_absolute_url }}#quizzes">Quizzes</a>
+          <a class="btn btn-sm btn-ghost" href="{% url 'library:text_update' text.pk %}">Editar</a>
+          <a class="btn btn-sm btn-ghost btn-danger-text" href="{% url 'library:text_delete' text.pk %}" aria-label="Excluir {{ text.title }}">Excluir</a>
+        </div>
+      </article>
+      {% empty %}
+      <div class="card empty field-full">
+        {% if total %}Nenhum texto corresponde aos filtros.{% else %}Você ainda não cadastrou textos. <a href="{% url 'library:text_create' %}">Cadastre o primeiro</a>.{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% include "partials/pagination.html" %}
+  </section>
+</div>
+{% endblock %}

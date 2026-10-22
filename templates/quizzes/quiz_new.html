@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Novo quiz · {{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a> / <a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / Novo quiz</div>
+    <h1>Criar quiz</h1>
+    <p>Escolha os tipos de pergunta e quantas de cada. Cada pergunta terá {{ options_per_question }} alternativas (A–E) e apenas uma correta.
+      {% if previous_quizzes %}Este texto já tem {{ previous_quizzes }} quiz{{ previous_quizzes|pluralize:"zes" }}: as novas perguntas evitarão repetir as anteriores, que continuam intactas.{% endif %}</p>
+  </div>
+</div>
+
+<form method="post" class="quiz-builder" data-quiz-builder data-max-total="{{ max_questions }}" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+  <div class="message error message-action" role="alert">{% for e in form.non_field_errors %}{{ e }} {% endfor %}</div>
+  {% endif %}
+
+  <fieldset class="kind-grid">
+    <legend class="sr-only">Tipos de pergunta</legend>
+    {% for row in form.kind_rows %}
+    <div class="card kind-card{% if row.count.value|default:0|add:0 > 0 %} is-selected{% endif %}" data-kind-card>
+      <label class="kind-toggle">
+        {{ row.use }}
+        <span class="kind-icon" aria-hidden="true">{{ row.kind.icon }}</span>
+        <span class="kind-name">{{ row.kind.label }}</span>
+      </label>
+      <p class="kind-desc">{{ row.kind.description }}</p>
+      <div class="stepper">
+        <label class="sr-only" for="{{ row.count.id_for_label }}">{{ row.count.label }}</label>
+        <button class="btn btn-icon" type="button" data-step="-1" aria-label="Menos perguntas de {{ row.kind.label }}">−</button>
+        {{ row.count }}
+        <button class="btn btn-icon" type="button" data-step="1" aria-label="Mais perguntas de {{ row.kind.label }}">+</button>
+        <span class="muted stepper-unit">pergunta(s)</span>
+      </div>
+      {{ row.count.errors }}
+    </div>
+    {% endfor %}
+  </fieldset>
+
+  <section class="card stack-top">
+    <div class="form-grid">
+      <div class="field">
+        <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+        {{ form.title }}{{ form.title.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>
+        {{ form.language }}
+        <small>As explicações das respostas aparecem em {{ text.target_language|lang_name }}.</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.mode.id_for_label }}">{{ form.mode.label }}</label>
+        {{ form.mode }}
+        <small>Usado em “Gerar e responder agora”.</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="builder-bar card stack-top" aria-live="polite">
+    <p class="builder-total"><strong data-total>0</strong> de no máximo {{ max_questions }} perguntas <span class="muted" data-total-hint></span></p>
+    <div class="btn-group">
+      <button class="btn btn-primary" type="submit" name="start" value="1" data-loading-text="Gerando perguntas…">Gerar e responder agora</button>
+      <button class="btn" type="submit" data-loading-text="Gerando perguntas…">Gerar quiz</button>
+      <a class="btn btn-ghost" href="{{ text.get_absolute_url }}#quizzes">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  const form = document.querySelector("[data-quiz-builder]");
+  const max = parseInt(form.getAttribute("data-max-total"), 10);
+  const totalEl = form.querySelector("[data-total]");
+  const hint = form.querySelector("[data-total-hint]");
+  const submits = form.querySelectorAll("button[type=submit]");
+
+  function cards() { return form.querySelectorAll("[data-kind-card]"); }
+  function parts(card) {
+    return { use: card.querySelector("input[type=checkbox]"), count: card.querySelector("input[type=number]") };
+  }
+  function update() {
+    let total = 0;
+    cards().forEach(function (card) {
+      const p = parts(card);
+      const n = Math.max(0, parseInt(p.count.value, 10) || 0);
+      card.classList.toggle("is-selected", p.use.checked);
+      if (p.use.checked) total += n;
+    });
+    totalEl.textContent = total;
+    const invalid = total === 0 || total > max;
+    hint.textContent = total === 0 ? "— selecione ao menos um tipo" : total > max ? "— reduza a quantidade" : "";
+    submits.forEach(function (b) { b.disabled = invalid; });
+  }
+  form.addEventListener("click", function (ev) {
+    const btn = ev.target.closest("[data-step]");
+    if (!btn) return;
+    const p = parts(btn.closest("[data-kind-card]"));
+    const limit = parseInt(p.count.max, 10) || 10;
+    const value = Math.min(limit, Math.max(0, (parseInt(p.count.value, 10) || 0) + parseInt(btn.getAttribute("data-step"), 10)));
+    p.count.value = value;
+    p.use.checked = value > 0;
+    update();
+  });
+  form.addEventListener("change", function (ev) {
+    const card = ev.target.closest("[data-kind-card]");
+    if (!card) return;
+    const p = parts(card);
+    if (ev.target === p.use && p.use.checked && !(parseInt(p.count.value, 10) > 0)) p.count.value = 1;
+    if (ev.target === p.use && !p.use.checked) p.count.value = 0;
+    if (ev.target === p.count) p.use.checked = (parseInt(p.count.value, 10) || 0) > 0;
+    update();
+  });
+  form.addEventListener("input", update);
+  // Tipos com quantidade preenchida começam marcados.
+  cards().forEach(function (card) { const p = parts(card); if ((parseInt(p.count.value, 10) || 0) > 0) p.use.checked = true; });
+  update();
+})();
+</script>
+{% endblock %}

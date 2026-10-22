@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{% if text %}Editar texto{% else %}Novo texto{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a>{% if text %} / <a href="{{ text.get_absolute_url }}">{{ text.title }}</a>{% endif %}</div>
+    <h1>{% if text %}Editar texto{% else %}Cadastrar texto{% endif %}</h1>
+    <p>Textos acima de 500 caracteres são divididos automaticamente em trechos. A tradução é gerada ao salvar.</p>
+  </div>
+</div>
+
+<form class="card" method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  <div class="form-grid">
+    <div class="field field-full">
+      <label for="{{ form.title.id_for_label }}">Título</label>
+      {{ form.title }}{{ form.title.errors }}
+    </div>
+    <div class="field">
+      <label for="{{ form.source_language.id_for_label }}">Idioma de estudo (original)</label>
+      {{ form.source_language }}{{ form.source_language.errors }}
+    </div>
+    <div class="field">
+      <label for="{{ form.target_language.id_for_label }}">Idioma de tradução</label>
+      {{ form.target_language }}{{ form.target_language.errors }}
+    </div>
+    <div class="field">
+      <label for="{{ form.quiz_language.id_for_label }}">Idioma dos quizzes</label>
+      {{ form.quiz_language }}{{ form.quiz_language.errors }}
+    </div>
+    <div class="field field-full">
+      <label for="{{ form.content.id_for_label }}">Conteúdo original</label>
+      {{ form.content }}{{ form.content.errors }}
+      <div class="char-count" data-char-count="{{ form.content.id_for_label }}" data-chunk-size="500"></div>
+    </div>
+    <div class="field field-full">
+      <label>Tags existentes</label>
+      {% if form.tags.field.queryset.exists %}
+      <div class="checkbox-list">
+        {% for choice in form.tags %}<label class="chip-check">{{ choice.tag }} {{ choice.choice_label }}</label>{% endfor %}
+      </div>
+      {% else %}<small>Nenhuma tag criada ainda — crie abaixo.</small>{% endif %}
+    </div>
+    <div class="field field-full">
+      <label for="{{ form.new_tags.id_for_label }}">{{ form.new_tags.label }}</label>
+      {{ form.new_tags }}{{ form.new_tags.errors }}
+      <small>{{ form.new_tags.help_text }}</small>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit" data-loading-text="Salvando e traduzindo…">Salvar{% if not text %} e traduzir{% endif %}</button>
+    <a class="btn" href="{% if text %}{{ text.get_absolute_url }}{% else %}{% url 'library:text_list' %}{% endif %}">Cancelar</a>
+    {% if text %}<a class="btn btn-danger btn-push" href="{% url 'library:text_delete' text.pk %}">Excluir texto</a>{% endif %}
+  </div>
+</form>
+{% endblock %}

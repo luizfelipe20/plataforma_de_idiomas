@@ -1,0 +1,63 @@
+# Sobe a aplicação (web), o PostgreSQL (db) e o agendador de limpeza de sessões.
+#   docker compose up -d --build
+# As variáveis da aplicação vêm do arquivo .env (veja .env.example).
+
+x-app: &app
+  build: .
+  image: lingualab:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://${POSTGRES_USER:-lingualab}:${POSTGRES_PASSWORD:-lingualab}@db:5432/${POSTGRES_DB:-lingualab}
+    MEDIA_ROOT: /app/media
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    DJANGO_HTTPS: ${DJANGO_HTTPS:-False}
+  volumes:
+    - media:/app/media
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lingualab}
+      POSTGRES_USER: ${POSTGRES_USER:-lingualab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lingualab}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/contas/entrar/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  scheduler:
+    <<: *app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lingualab}:${POSTGRES_PASSWORD:-lingualab}@db:5432/${POSTGRES_DB:-lingualab}
+      MEDIA_ROOT: /app/media
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      web:
+        condition: service_healthy
+    command: >
+      sh -c "while true; do python manage.py close_stale_sessions; sleep $${CLEANUP_INTERVAL_SECONDS:-300}; done"
+
+volumes:
+  pgdata:
+  media:

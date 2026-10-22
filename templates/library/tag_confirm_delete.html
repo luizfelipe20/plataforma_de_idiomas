@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Excluir tag{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Excluir a tag “{{ tag.name }}”?</h1>
+  <p>Ela será removida de <strong>{{ tag.text_count }}</strong> texto{{ tag.text_count|pluralize }}. <strong>Os textos não serão excluídos.</strong></p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Excluir tag</button>
+    <a class="btn" href="{% url 'library:tag_list' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

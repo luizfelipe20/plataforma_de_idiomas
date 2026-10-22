@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Estudar · {{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header" data-study-activity="{{ activity }}" data-study-text="{{ text.pk }}">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a> / <a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / Estudar</div>
+    <h1>{{ text.title }}</h1>
+    <p>Tempo de estudo nesta tela: <strong data-study-timer>00:00:00</strong> <small>(contado apenas com a aba ativa ou áudio tocando)</small></p>
+  </div>
+  <nav class="mode-tabs" aria-label="Modo de estudo">
+    {% for value, label in study_modes %}
+    <a href="?modo={{ value }}" class="{% if mode == value %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+</div>
+
+<div class="quiz-layout">
+  <section class="card">
+    {% include "partials/player.html" %}
+    <div class="spacer"></div>
+
+    {% if mode == "audio_only" %}
+      <div class="hidden-text-note" data-hidden-note>
+        <span class="icon" aria-hidden="true">🎧</span>
+        <div>
+          <strong>Modo somente áudio.</strong> O texto original está oculto para treinar a compreensão auditiva.
+          <div class="btn-group cell-sub">
+            <button class="btn btn-sm" type="button" data-reveal aria-expanded="false">Revelar texto</button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <div data-reader class="{% if mode == 'audio_only' %}hidden{% endif %}">
+      <div class="study-stage" data-stage data-chunk-index="0" lang="{{ text.source_language }}">{{ chunks.0.content }}</div>
+      <details class="study-translation" {% if mode == "reading" %}open{% endif %}>
+        <summary>Tradução ({{ text.target_language|lang_name }})</summary>
+        <div data-stage-translation lang="{{ text.target_language }}">{{ chunks.0.translation|default:"Tradução pendente." }}</div>
+      </details>
+    </div>
+
+    <div class="study-nav">
+      <button class="btn btn-sm" type="button" data-nav="-1">← Trecho anterior</button>
+      <div class="chunk-dots" role="tablist" aria-label="Trechos">
+        {% for chunk in chunks %}
+        <button type="button" data-goto="{{ forloop.counter0 }}" class="{% if forloop.first %}active{% endif %}" aria-label="Trecho {{ forloop.counter }}" {% if forloop.first %}aria-current="true"{% endif %}
+          {% if mode != "reading" %}data-play-chunk="{{ forloop.counter0 }}"{% endif %}>{{ forloop.counter }}</button>
+        {% endfor %}
+      </div>
+      <button class="btn btn-sm" type="button" data-nav="1">Próximo trecho →</button>
+    </div>
+  </section>
+
+  <aside class="card">
+    <div class="card-header"><h2>Testar compreensão</h2></div>
+    <p class="muted">A tentativa será registrada no modo <strong>{% for v, l in study_modes %}{% if v == mode %}{{ l }}{% endif %}{% endfor %}</strong>{% if mode == "audio_only" %}: o texto permanece oculto durante o quiz{% elif mode == "reading" %}: o texto fica disponível para consulta{% endif %}.</p>
+    {% for quiz in quizzes %}
+    <form method="post" action="{% url 'quizzes:attempt_start' quiz.pk %}" class="quiz-pick">
+      {% csrf_token %}
+      <input type="hidden" name="mode" value="{{ mode }}">
+      <span><strong>{{ quiz.label }}</strong> <small class="muted">{{ quiz.attempt_count }} tentativa{{ quiz.attempt_count|pluralize }}{% if quiz.best_score is not None %} · melhor {{ quiz.best_score }}%{% endif %}</small></span>
+      <button class="btn btn-sm btn-primary" type="submit">Responder</button>
+    </form>
+    {% empty %}
+    <p class="muted">Nenhum quiz ainda.</p>
+    {% endfor %}
+    <form method="post" action="{% url 'quizzes:quiz_generate' text.pk %}" class="form-actions">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="start">
+      <input type="hidden" name="mode" value="{{ mode }}">
+      <button class="btn" type="submit" data-loading-text="Gerando quiz…">Gerar quiz rápido e responder</button>
+      <a class="btn btn-ghost" href="{% url 'quizzes:quiz_new' text.pk %}">Criar quiz personalizado</a>
+    </form>
+  </aside>
+</div>
+{{ chunk_translations|json_script:"chunk-translations" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/tts.js' %}"></script>
+<script>
+(function () {
+  const texts = JSON.parse(document.getElementById("chunk-texts").textContent);
+  const translations = JSON.parse(document.getElementById("chunk-translations").textContent);
+  const stage = document.querySelector("[data-stage]");
+  const stageTr = document.querySelector("[data-stage-translation]");
+  const dots = document.querySelectorAll("[data-goto]");
+  const player = document.querySelector("[data-tts-player]");
+  let current = 0;
+
+  function show(i) {
+    current = Math.max(0, Math.min(texts.length - 1, i));
+    stage.textContent = texts[current];
+    stage.setAttribute("data-chunk-index", current);
+    stageTr.textContent = translations[current] || "Tradução pendente.";
+    dots.forEach(function (d, idx) {
+      d.classList.toggle("active", idx === current);
+      if (idx === current) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current");
+    });
+    if (player && player.ttsPlayer) player.ttsPlayer.index = current;
+  }
+  document.addEventListener("click", function (ev) {
+    const nav = ev.target.closest("[data-nav]");
+    if (nav) show(current + parseInt(nav.getAttribute("data-nav"), 10));
+    const go = ev.target.closest("[data-goto]");
+    if (go) show(parseInt(go.getAttribute("data-goto"), 10));
+    const reveal = ev.target.closest("[data-reveal]");
+    if (reveal) {
+      const hidden = document.querySelector("[data-reader]").classList.toggle("hidden");
+      reveal.setAttribute("aria-expanded", String(!hidden));
+      reveal.textContent = hidden ? "Revelar texto" : "Ocultar texto";
+    }
+  });
+  document.addEventListener("tts:chunk", function (ev) { if (ev.detail.index !== current) show(ev.detail.index); });
+})();
+</script>
+{% endblock %}

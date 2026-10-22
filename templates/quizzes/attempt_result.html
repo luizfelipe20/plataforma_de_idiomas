@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Resultado · {{ quiz.label }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / <a href="{{ quiz.get_absolute_url }}">{{ quiz.label }}</a> / Resultado</div>
+    <h1>Resultado da tentativa</h1>
+    <p>Concluída em {{ attempt.completed_at|date:"d/m/Y H:i" }} · modo {{ attempt.get_mode_display }}</p>
+  </div>
+  <div class="btn-group">
+    <form method="post" action="{% url 'quizzes:attempt_start' quiz.pk %}">
+      {% csrf_token %}<input type="hidden" name="mode" value="{{ attempt.mode }}">
+      <button class="btn btn-primary" type="submit">Tentar novamente</button>
+    </form>
+    <form method="post" action="{% url 'quizzes:quiz_generate' text.pk %}">
+      {% csrf_token %}<input type="hidden" name="next" value="start"><input type="hidden" name="mode" value="{{ attempt.mode }}">
+      <button class="btn" type="submit" data-loading-text="Gerando…">Novo quiz</button>
+    </form>
+    <a class="btn" href="{% url 'dashboard:text_report' text.pk %}">Desempenho do texto</a>
+  </div>
+</div>
+
+<section class="card">
+  <div class="score-hero">
+    <div class="score-ring" role="img" aria-label="Pontuação {{ attempt.score }} de 100" style="--score: {{ attempt.score }}; --ring-color: var(--{% if attempt.score >= 80 %}good{% elif attempt.score >= 60 %}mid{% else %}bad{% endif %})"><span>{{ attempt.score }}</span></div>
+    <div>
+      <h2>{{ attempt.correct_count }} acerto{{ attempt.correct_count|pluralize }} e {{ attempt.wrong_count }} erro{{ attempt.wrong_count|pluralize }}</h2>
+      <p class="muted">Pontuação de 0 a 100. {% if previous %}Tentativa anterior deste quiz: <span class="{{ previous.score|score_class }}">{{ previous.score }}</span> ({{ previous.completed_at|date:"d/m H:i" }}).{% else %}Primeira tentativa concluída deste quiz.{% endif %}</p>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Correção</h2>
+  {% for item in review %}
+  <div class="question">
+    <span class="badge question-kind"><span aria-hidden="true">{{ item.question.kind_info.icon }}</span> {{ item.question.get_kind_display }}</span>
+    <div class="question-title">
+      {{ forloop.counter }}. {{ item.question.prompt }}
+      {% if item.answer.is_correct %}<span class="badge badge-good">✓ Acertou</span>{% else %}<span class="badge badge-bad">✗ Errou</span>{% endif %}
+    </div>
+    {% for option in item.question.options.all %}
+      <div class="review-option {% if option.is_correct %}correct{% elif item.answer.selected_option_id == option.pk %}wrong{% endif %}">
+        <span class="option-letter">{{ option.letter }})</span> {{ option.text }}
+        <span class="markers">
+          {% if item.answer.selected_option_id == option.pk %}<span class="marker {% if option.is_correct %}score-good{% else %}score-bad{% endif %}">Sua resposta</span>{% endif %}
+          {% if option.is_correct %}<span class="marker score-good">Resposta correta</span>{% endif %}
+        </span>
+      </div>
+    {% endfor %}
+    {% if item.question.passage %}<div class="explanation"><strong>Trecho ouvido:</strong> <span lang="{{ text.source_language }}">“{{ item.question.passage }}”</span></div>{% endif %}
+    {% if item.question.explanation %}<div class="explanation"><strong>Explicação:</strong> {{ item.question.explanation }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

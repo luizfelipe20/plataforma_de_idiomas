@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Histórico de tentativas{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Histórico de tentativas</h1>
+    <p>{% if quiz_filter %}Filtrando por {{ quiz_filter }}. {% endif %}Cada envio de quiz gera um registro novo; nada é sobrescrito.</p>
+  </div>
+</div>
+<form class="card filters" method="get" aria-label="Filtrar tentativas">
+  <div class="field">
+    <label for="status">Situação</label>
+    <select id="status" name="status">
+      {% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      <option value="all" {% if status == "all" %}selected{% endif %}>Todas</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="texto">Texto</label>
+    <select id="texto" name="texto">
+      <option value="">Todos</option>
+      {% for t in texts %}<option value="{{ t.pk }}" {% if t.pk == text_id %}selected{% endif %}>{{ t.title }} ({{ t.n }})</option>{% endfor %}
+    </select>
+  </div>
+  <div class="btn-group"><button class="btn btn-primary" type="submit">Filtrar</button><a class="btn" href="{{ base_url }}">Limpar</a></div>
+</form>
+
+<section class="card">
+  <div class="table-wrap">
+    <table class="table-stack table-stack-wide table-stack-xwide">
+      <thead><tr><th>Data</th><th>Texto</th><th>Quiz</th><th>Modo</th><th>Situação</th><th class="num">Acertos</th><th class="num">Erros</th><th class="num">Pontuação</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for a in page %}
+        <tr>
+          <td>{{ a.completed_at|default:a.started_at|date:"d/m/Y H:i" }}</td>
+          <td class="cell-title"><a href="{% url 'dashboard:text_report' a.text_id %}">{{ a.text.title }}</a></td>
+          <td><a href="{{ a.quiz.get_absolute_url }}">{{ a.quiz.label }}</a></td>
+          <td>{{ a.get_mode_display }}</td>
+          <td>{{ a.get_status_display }}</td>
+          <td class="num">{% if a.is_completed %}{{ a.correct_count }}{% else %}—{% endif %}</td>
+          <td class="num">{% if a.is_completed %}{{ a.wrong_count }}{% else %}—{% endif %}</td>
+          <td class="num"><span class="{{ a.score|score_class }}">{{ a.score|default_if_none:"—" }}</span></td>
+          <td class="cell-actions">{% if a.status != "abandoned" %}<a class="btn btn-sm" href="{{ a.get_absolute_url }}">{% if a.is_completed %}Correção{% else %}Continuar{% endif %}</a>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9" class="empty">Nenhuma tentativa encontrada.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "partials/pagination.html" %}
+</section>
+{% endblock %}

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard de desempenho</h1>
+    <p>Indicadores calculados a partir das tentativas concluídas{% if filters.is_filtered %} nos filtros selecionados{% endif %}.</p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'library:text_create' %}">+ Novo texto</a>
+</div>
+
+<details class="card filter-panel" open data-collapse-mobile {% if filters.is_filtered %}data-has-filters{% endif %}>
+<summary>Filtros{% if filters.is_filtered %} <span class="badge tag">ativos</span>{% endif %}</summary>
+<form class="filters" method="get" aria-label="Filtros do dashboard">
+  <div class="field">
+    <label for="periodo">Período</label>
+    <select id="periodo" name="periodo" onchange="document.querySelectorAll('[data-custom-period]').forEach(function(e){e.classList.toggle('hidden', this.value!=='custom')}, this)">
+      {% for key, label in periods %}<option value="{{ key }}" {% if filters.period == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field {% if filters.period != 'custom' %}hidden{% endif %}" data-custom-period>
+    <label for="de">De</label><input type="date" id="de" name="de" value="{{ filters.date_from|date:'Y-m-d' }}">
+  </div>
+  <div class="field {% if filters.period != 'custom' %}hidden{% endif %}" data-custom-period>
+    <label for="ate">Até</label><input type="date" id="ate" name="ate" value="{{ filters.date_to|date:'Y-m-d' }}">
+  </div>
+  <div class="field">
+    <label for="lang">Idioma de estudo</label>
+    <select id="lang" name="lang">
+      <option value="">Todos</option>
+      {% for code, name in language_choices %}<option value="{{ code }}" {% if filters.language == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="texto">Texto</label>
+    <select id="texto" name="texto">
+      <option value="">Todos</option>
+      {% for t in all_texts %}<option value="{{ t.pk }}" {% if filters.text_id == t.pk %}selected{% endif %}>{{ t.title|truncatechars:40 }}</option>{% endfor %}
+    </select>
+  </div>
+  {% if all_tags %}
+  <div class="field field-full">
+    <label>Tags</label>
+    <div class="checkbox-list">
+      {% for tag in all_tags %}<label class="chip-check"><input type="checkbox" name="tag" value="{{ tag.pk }}" {% if tag.pk in filters.tag_ids %}checked{% endif %}> {{ tag.name }}</label>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  <div class="btn-group">
+    <button class="btn btn-primary" type="submit">Aplicar</button>
+    {% if filters.is_filtered %}<a class="btn" href="{% url 'dashboard:index' %}">Limpar</a>{% endif %}
+  </div>
+</form>
+</details>
+
+<section class="section stack-top">
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-label">Textos cadastrados</div><div class="kpi-value">{{ kpis.total_texts }}</div></div>
+    <div class="kpi"><div class="kpi-label">Quizzes gerados</div><div class="kpi-value">{{ kpis.total_quizzes }}</div></div>
+    <div class="kpi"><div class="kpi-label">Tentativas concluídas</div><div class="kpi-value">{{ kpis.total_attempts }}</div></div>
+    <div class="kpi"><div class="kpi-label">Aproveitamento médio</div><div class="kpi-value {{ kpis.avg_score|score_class }}">{% if kpis.avg_score is not None %}{{ kpis.avg_score|floatformat:0 }}%{% else %}—{% endif %}</div></div>
+    <div class="kpi"><div class="kpi-label">Média de acertos</div><div class="kpi-value">{% if kpis.avg_correct is not None %}{{ kpis.avg_correct|floatformat:1 }}{% else %}—{% endif %}</div><div class="kpi-hint">por tentativa</div></div>
+    <div class="kpi"><div class="kpi-label">Média de erros</div><div class="kpi-value">{% if kpis.avg_wrong is not None %}{{ kpis.avg_wrong|floatformat:1 }}{% else %}—{% endif %}</div><div class="kpi-hint">por tentativa</div></div>
+    <div class="kpi"><div class="kpi-label">Textos estudados</div><div class="kpi-value">{{ kpis.texts_studied }}</div><div class="kpi-hint">com ao menos 1 tentativa</div></div>
+    <div class="kpi"><div class="kpi-label">Precisam de revisão</div><div class="kpi-value {% if kpis.texts_review %}score-bad{% endif %}">{{ kpis.texts_review }}</div><div class="kpi-hint">média ou última &lt; {{ review_threshold }}%</div></div>
+  </div>
+</section>
+
+<section class="section stack-top">
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-label">Sessão atual</div><div class="kpi-value" data-dashboard-session>{{ time.current_session_seconds|duration }}</div><div class="kpi-hint">{{ time.current_active_seconds|human_duration }} ativo</div></div>
+    <div class="kpi"><div class="kpi-label">Conectado hoje</div><div class="kpi-value">{{ time.connected_today|duration }}</div></div>
+    <div class="kpi"><div class="kpi-label">Estudo hoje</div><div class="kpi-value">{{ time.study_today|duration }}</div></div>
+    <div class="kpi"><div class="kpi-label">Estudo na semana</div><div class="kpi-value">{{ time.study_week|duration }}</div></div>
+    <div class="kpi"><div class="kpi-label">Estudo no mês</div><div class="kpi-value">{{ time.study_month|duration }}</div></div>
+    <div class="kpi"><div class="kpi-label">Média diária de estudo</div><div class="kpi-value">{{ time.study_daily_average|duration }}</div><div class="kpi-hint">últimos {{ time.average_days }} dias</div></div>
+  </div>
+</section>
+
+<div class="grid grid-2 stack-top">
+  <section class="card">
+    <div class="card-header"><h2>Evolução do aproveitamento</h2><small>média diária das tentativas</small></div>
+    <div class="chart" data-chart="line" data-source="evolution-data" data-max="100" data-unit="%"
+      data-series='[{"key":"avg_score","label":"Aproveitamento","color":"--series-1"}]'
+      data-empty="Responda quizzes para ver sua evolução." aria-label="Evolução do aproveitamento"></div>
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Tempo por dia</h2><small>últimos 14 dias, em minutos</small></div>
+    <div class="chart" data-chart="bar" data-source="daily-data" data-unit=" min"
+      data-series='[{"key":"connected_minutes","label":"Conectado","color":"--series-2"},{"key":"study_minutes","label":"Estudo","color":"--series-1"}]'
+      aria-label="Tempo conectado e de estudo por dia"></div>
+    <div class="legend"><span style="--c:var(--series-2)">Conectado</span><span style="--c:var(--series-1)">Estudo</span></div>
+  </section>
+</div>
+
+<div class="grid stack-top">
+  <section class="card">
+    <div class="card-header"><h2>Textos com mais acertos</h2><small>aproveitamento ≥ {{ review_threshold }}%, melhores primeiro</small></div>
+    {% include "dashboard/_ranking_table.html" with rows=best kind="best" empty_message="Nenhum texto com aproveitamento acima do limiar no período." %}
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Textos com mais erros</h2><small>aproveitamento &lt; {{ review_threshold }}%, maior dificuldade primeiro</small></div>
+    {% include "dashboard/_ranking_table.html" with rows=worst kind="worst" empty_message="Nenhum texto abaixo do limiar no período. 👏" %}
+  </section>
+</div>
+<p class="muted note">A ordenação usa uma média ajustada pela quantidade de tentativas (resultados de textos pouco praticados são aproximados da sua média geral), e textos com menos de {{ min_attempts }} tentativas — marcados como “poucas” — aparecem depois dos demais, para que um resultado isolado não seja tratado como o mais difícil. A coluna “Aproveitamento” mostra a média real.</p>
+
+<div class="grid grid-2 stack-top">
+  <section class="card">
+    <div class="card-header"><h2>Precisam de revisão</h2><small>média ou última pontuação abaixo de {{ review_threshold }}%</small></div>
+    <div class="table-wrap">
+      <table class="table-stack">
+        <thead><tr><th>Texto</th><th class="num">Tentativas</th><th class="num">Média</th><th class="num">Última</th><th><span class="sr-only">Ações</span></th></tr></thead>
+        <tbody>
+        {% for row in review %}
+          <tr>
+            <td class="cell-title"><a href="{% url 'dashboard:text_report' row.text.pk %}">{{ row.text.title }}</a></td>
+            <td class="num">{{ row.attempts }}</td>
+            <td class="num"><span class="{{ row.avg_score|score_class }}">{{ row.avg_score|floatformat:0 }}%</span></td>
+            <td class="num"><span class="{{ row.last_score|score_class }}">{{ row.last_score }}%</span></td>
+            <td class="cell-actions"><a class="btn btn-sm btn-primary" href="{% url 'library:study' row.text.pk %}">Revisar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum texto precisa de revisão. 🎉</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><h2>Desempenho por tag</h2><small>menor aproveitamento primeiro</small></div>
+    <div class="table-wrap">
+      <table class="table-stack">
+        <thead><tr><th>Tag</th><th class="num">Textos</th><th class="num">Tentativas</th><th class="num">Erros/tent.</th><th>Aproveitamento</th></tr></thead>
+        <tbody>
+        {% for row in tags %}
+          <tr>
+            <td class="cell-title">{% if row.tag %}<a class="badge tag" href="?tag={{ row.tag.pk }}">{{ row.tag.name }}</a>{% else %}<span class="badge">Sem tag</span>{% endif %}</td>
+            <td class="num">{{ row.texts }}</td>
+            <td class="num">{{ row.attempts }}</td>
+            <td class="num">{{ row.avg_wrong|floatformat:1 }}</td>
+            <td><div class="meter-row"><div class="meter" role="presentation"><span style="width:{{ row.avg_score|floatformat:0 }}%"></span></div><span class="{{ row.avg_score|score_class }}">{{ row.avg_score|floatformat:0 }}%</span></div></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Sem tentativas em textos com tags.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted note">Textos com várias tags contam em cada uma delas{% if multi_tag_texts %} ({{ multi_tag_texts }} texto{{ multi_tag_texts|pluralize }} nesta seleção){% endif %}. Por isso os números por tag não devem ser somados: o total real de tentativas é {{ kpis.total_attempts }}.</p>
+  </section>
+</div>
+
+<div class="grid grid-2 stack-top">
+  <section class="card">
+    <div class="card-header"><h2>Estudo por semana</h2><small>últimas 8 semanas, em minutos</small></div>
+    <div class="chart" data-chart="bar" data-source="weekly-data" data-unit=" min"
+      data-series='[{"key":"study_minutes","label":"Estudo","color":"--series-1"}]' aria-label="Tempo de estudo por semana"></div>
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Sessões recentes</h2><a class="btn btn-sm" href="{% url 'tracking:session_history' %}">Ver todas</a></div>
+    <div class="table-wrap">
+      <table class="table-stack">
+        <thead><tr><th>Início</th><th>Situação</th><th class="num">Duração</th><th class="num">Ativo</th></tr></thead>
+        <tbody>
+        {% for s in recent_sessions %}
+          <tr>
+            <td>{{ s.started_at|date:"d/m H:i" }}</td>
+            <td>{% if s.is_active %}<span class="badge badge-good">Ativa</span>{% else %}<span class="badge">{{ s.get_end_reason_display }}</span>{% endif %}</td>
+            <td class="num">{% if s.duration_seconds is not None %}{{ s.duration_seconds|duration }}{% else %}em curso{% endif %}</td>
+            <td class="num">{{ s.active_seconds|duration }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<section class="card stack-top">
+  <div class="card-header"><h2>Últimas tentativas</h2><a class="btn btn-sm" href="{% url 'quizzes:attempt_history' %}">Histórico completo</a></div>
+  <div class="table-wrap">
+    <table class="table-stack">
+      <thead><tr><th>Data</th><th>Texto</th><th>Quiz</th><th>Modo</th><th class="num">Pontuação</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for a in recent_attempts %}
+        <tr>
+          <td>{{ a.completed_at|date:"d/m/Y H:i" }}</td>
+          <td><a href="{% url 'dashboard:text_report' a.text_id %}">{{ a.text.title }}</a></td>
+          <td>{{ a.quiz.label }}</td>
+          <td>{{ a.get_mode_display }}</td>
+          <td class="num"><span class="{{ a.score|score_class }}">{{ a.score }}</span></td>
+          <td class="cell-actions"><a class="btn btn-sm" href="{{ a.get_absolute_url }}">Ver correção</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="empty">Nenhuma tentativa concluída ainda.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{{ evolution|json_script:"evolution-data" }}
+{{ daily_series|json_script:"daily-data" }}
+{{ weekly_series|json_script:"weekly-data" }}
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/charts.js' %}"></script>
+<script>
+(function () {
+  // "Sessão atual" acompanha o cronômetro do cabeçalho (mesma referência do servidor).
+  const out = document.querySelector("[data-dashboard-session]");
+  const src = document.querySelector("[data-timer-value]");
+  if (out && src) setInterval(function () { out.textContent = src.textContent; }, 1000);
+})();
+</script>
+{% endblock %}

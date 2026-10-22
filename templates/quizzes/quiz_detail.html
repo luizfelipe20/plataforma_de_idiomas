@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}{{ quiz.label }} · {{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a> / <a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / {{ quiz.label }}</div>
+    <h1>{{ quiz.label }} — {{ text.title }}</h1>
+    <p>Criado em {{ quiz.created_at|date:"d/m/Y H:i" }} · {{ questions|length }} pergunta{{ questions|length|pluralize }} com {{ quiz.options_per_question }} alternativas · enunciados em {{ quiz.language|lang_name }}{% if quiz.ai_model %} · gerado por {{ quiz.ai_model }}{% endif %}</p>
+    <div class="kind-summary">{% for kind, n in kinds_used %}<span class="badge"><span aria-hidden="true">{{ kind.icon }}</span> {{ kind.label }}: {{ n }}</span>{% endfor %}</div>
+    {% if quiz.generation_notes %}<p class="score-mid">{{ quiz.generation_notes }}</p>{% endif %}
+  </div>
+  <form method="post" action="{% url 'quizzes:attempt_start' quiz.pk %}" class="btn-group">
+    {% csrf_token %}
+    <select name="mode" class="select-auto" aria-label="Modo da tentativa">
+      {% for value, label in study_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-primary" type="submit">Nova tentativa</button>
+  </form>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Tentativas concluídas</div><div class="kpi-value">{{ stats.count }}</div></div>
+  <div class="kpi"><div class="kpi-label">Média</div><div class="kpi-value {{ stats.avg|score_class }}">{% if stats.avg is not None %}{{ stats.avg|floatformat:0 }}%{% else %}—{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Melhor</div><div class="kpi-value {{ stats.best|score_class }}">{% if stats.best is not None %}{{ stats.best }}%{% else %}—{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Pior</div><div class="kpi-value {{ stats.worst|score_class }}">{% if stats.worst is not None %}{{ stats.worst }}%{% else %}—{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">Acertos / erros médios</div><div class="kpi-value">{% if stats.count %}{{ stats.avg_correct|floatformat:1 }} / {{ stats.avg_wrong|floatformat:1 }}{% else %}—{% endif %}</div></div>
+</div>
+
+<section class="card stack-top">
+  <div class="card-header"><h2>Histórico de tentativas</h2></div>
+  <div class="table-wrap">
+    <table class="table-stack table-stack-wide">
+      <thead><tr><th>#</th><th>Início</th><th>Situação</th><th>Modo</th><th class="num">Acertos</th><th class="num">Erros</th><th class="num">Pontuação</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for attempt in attempts %}
+        <tr>
+          <td>{{ attempt.pk }}</td>
+          <td>{{ attempt.started_at|date:"d/m/Y H:i" }}</td>
+          <td><span class="badge {% if attempt.status == 'completed' %}badge-good{% elif attempt.status == 'abandoned' %}badge-bad{% else %}badge-mid{% endif %}">{{ attempt.get_status_display }}</span></td>
+          <td>{{ attempt.get_mode_display }}</td>
+          <td class="num">{% if attempt.is_completed %}{{ attempt.correct_count }}{% else %}—{% endif %}</td>
+          <td class="num">{% if attempt.is_completed %}{{ attempt.wrong_count }}{% else %}—{% endif %}</td>
+          <td class="num"><span class="{{ attempt.score|score_class }}">{% if attempt.score is not None %}{{ attempt.score }}{% else %}—{% endif %}</span></td>
+          <td class="cell-actions">{% if attempt.status != "abandoned" %}<a class="btn btn-sm" href="{{ attempt.get_absolute_url }}">{% if attempt.is_completed %}Ver correção{% else %}Continuar{% endif %}</a>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="empty">Nenhuma tentativa ainda.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Perguntas</h2>
+    {% if show_answers %}<a class="btn btn-sm" href="?">Ocultar respostas</a>{% else %}<a class="btn btn-sm" href="?respostas=1">Mostrar respostas</a>{% endif %}
+  </div>
+  <ol class="answer-list">
+    {% for question in questions %}
+    <li><span class="badge question-kind"><span aria-hidden="true">{{ question.kind_info.icon }}</span> {{ question.get_kind_display }}</span><br>{{ question.prompt }}
+      {% if show_answers %}<div class="muted">Resposta: <strong>{{ question.correct_option.letter }}) {{ question.correct_option.text }}</strong>{% if question.passage %}<br>Trecho em áudio: “{{ question.passage }}”{% endif %}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

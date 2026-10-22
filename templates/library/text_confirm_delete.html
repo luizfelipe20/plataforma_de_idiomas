@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Excluir texto{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Excluir “{{ text.title }}”?</h1>
+  <p>Esta ação também remove <strong>{{ quiz_count }}</strong> quiz{{ quiz_count|pluralize:"zes" }} e <strong>{{ attempt_count }}</strong> tentativa{{ attempt_count|pluralize }} deste texto. As tags continuam existindo.</p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Excluir definitivamente</button>
+    <a class="btn" href="{{ text.get_absolute_url }}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

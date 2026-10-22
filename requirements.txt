@@ -1,0 +1,7 @@
+Django>=5.2,<6.0
+anthropic>=1.15,<2
+python-dotenv>=1.0
+dj-database-url>=2.2
+whitenoise>=6.7
+gTTS>=2.5
+psycopg[binary]>=3.2

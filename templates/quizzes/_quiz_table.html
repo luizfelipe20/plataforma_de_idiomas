@@ -1,0 +1,39 @@
+{% load core_tags %}
+<div class="table-wrap">
+  <table class="table-stack table-stack-wide">
+    <thead>
+      <tr>
+        <th>Quiz</th><th>Perguntas</th><th>Criado em</th><th>Idioma</th><th class="num">Tentativas</th>
+        <th class="num">Melhor</th><th class="num">Última</th><th><span class="sr-only">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for quiz in quizzes %}
+      <tr>
+        <td class="cell-title"><a href="{{ quiz.get_absolute_url }}"><strong>{{ quiz.label }}</strong></a></td>
+        <td>
+          {{ quiz.question_count }} · {{ quiz.options_per_question }} alternativas
+          <div class="kind-summary cell-sub">{% for kind, n in quiz.kinds_summary %}<span class="badge" title="{{ kind.label }}"><span aria-hidden="true">{{ kind.icon }}</span> {{ kind.label }}: {{ n }}</span>{% endfor %}</div>
+        </td>
+        <td>{{ quiz.created_at|date:"d/m/Y H:i" }}</td>
+        <td>{{ quiz.language|lang_name }}</td>
+        <td class="num">{{ quiz.attempt_count }}</td>
+        <td class="num"><span class="{{ quiz.best_score|score_class }}">{% if quiz.best_score is not None %}{{ quiz.best_score }}%{% else %}—{% endif %}</span></td>
+        <td class="num"><span class="{{ quiz.last_score|score_class }}">{% if quiz.last_score is not None %}{{ quiz.last_score }}%{% else %}—{% endif %}</span></td>
+        <td class="cell-actions">
+          <form method="post" action="{% url 'quizzes:attempt_start' quiz.pk %}" class="btn-group">
+            {% csrf_token %}
+            <select name="mode" class="select-auto" aria-label="Modo da tentativa de {{ quiz.label }}">
+              {% for value, label in study_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-sm btn-primary" type="submit">Responder</button>
+            <a class="btn btn-sm" href="{{ quiz.get_absolute_url }}">Histórico</a>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="empty">Nenhum quiz gerado ainda. Clique em “Criar quiz”.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

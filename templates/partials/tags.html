@@ -1,0 +1,1 @@
+<div class="tags">{% for tag in tags %}<a class="badge tag" href="{% url 'library:text_list' %}?tag={{ tag.pk }}">{{ tag.name }}</a>{% empty %}<span class="muted">Sem tags</span>{% endfor %}</div>

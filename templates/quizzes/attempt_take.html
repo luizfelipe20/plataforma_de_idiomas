@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}{{ quiz.label }} · {{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header" data-study-activity="quiz" data-study-text="{{ text.pk }}">
+  <div>
+    <div class="breadcrumbs"><a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / <a href="{{ quiz.get_absolute_url }}">{{ quiz.label }}</a> / Tentativa</div>
+    <h1>{{ quiz.label }} — {{ text.title }}</h1>
+    <p>Modo: <strong>{{ attempt.get_mode_display }}</strong> · {{ questions|length }} perguntas · tempo de estudo <strong data-study-timer>00:00:00</strong></p>
+  </div>
+</div>
+
+{% if error %}<div class="message error message-action" role="alert">{{ error }}</div>{% endif %}
+
+<div class="quiz-layout">
+  <aside class="card reference">
+    <div class="card-header">
+      <h2>Texto de referência</h2>
+      {% if attempt.mode != "audio_only" %}
+      <button class="btn btn-sm" type="button" data-toggle-reference aria-controls="reference-text"
+        aria-expanded="{% if hide_reference %}false{% else %}true{% endif %}">{% if hide_reference %}Mostrar texto{% else %}Ocultar texto{% endif %}</button>
+      {% endif %}
+    </div>
+    {% if attempt.mode != "reading" %}
+      {% include "partials/player.html" %}
+      <div class="spacer"></div>
+    {% endif %}
+    {% if attempt.mode == "audio_only" %}
+      <div class="hidden-text-note">
+        <span class="icon" aria-hidden="true">🎧</span>
+        <div><strong>Somente áudio.</strong> O texto original fica oculto durante a resolução. Use o player para ouvir quantas vezes quiser.</div>
+      </div>
+    {% else %}
+      {% if hide_reference %}
+      <p class="hidden-text-note" data-reference-note><span class="icon" aria-hidden="true">🎧</span>
+        <span>O texto começa oculto porque este quiz tem perguntas de compreensão auditiva. Você pode exibi-lo a qualquer momento.</span></p>
+      {% endif %}
+      <div lang="{{ text.source_language }}" id="reference-text" {% if hide_reference %}class="hidden"{% endif %}>
+        {% for chunk in chunks %}
+        <p class="chunk-original" data-chunk-index="{{ forloop.counter0 }}">{{ chunk.content }}{% if attempt.mode != "reading" %} <button class="btn btn-sm btn-ghost" type="button" data-play-chunk="{{ forloop.counter0 }}" title="Ouvir este trecho">🔊</button>{% endif %}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </aside>
+
+  <form class="card" method="post">
+    {% csrf_token %}
+    {% for question in questions %}
+    <fieldset class="question">
+      <legend class="question-title">
+        <span class="badge question-kind"><span aria-hidden="true">{{ question.kind_info.icon }}</span> {{ question.get_kind_display }}</span>
+        <span class="question-text">{{ forloop.counter }}. {{ question.prompt }}</span>
+      </legend>
+      {% if question.kind == "listening" and question.passage %}
+      <div class="question-audio">
+        {% if server_tts %}
+        <audio controls preload="none" src="{% url 'quizzes:question_audio' question.pk %}" data-question-audio>
+          Seu navegador não reproduz áudio.
+        </audio>
+        {% endif %}
+        <button class="btn btn-sm{% if server_tts %} hidden{% endif %}" type="button" data-speak="{{ question.speak_id }}" data-locale="{{ text.source_language|tts_locale }}">🔊 Ouvir o trecho</button>
+        {{ question.passage|json_script:question.speak_id }}
+      </div>
+      {% endif %}
+      {% for option in question.options.all %}
+      <label class="option">
+        <input type="radio" name="q{{ question.pk }}" value="{{ option.pk }}" required
+          {% for qid, oid in selections.items %}{% if qid == question.pk and oid == option.pk %}checked{% endif %}{% endfor %}>
+        <span><span class="option-letter">{{ option.letter }})</span> {{ option.text }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Enviar respostas</button>
+      <a class="btn" href="{{ quiz.get_absolute_url }}">Sair sem enviar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/tts.js' %}"></script>{% endblock %}

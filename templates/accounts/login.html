@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Entrar{% endblock %}
+{% block auth %}
+<main class="auth-page" id="conteudo" tabindex="-1">
+  <div class="card auth-card">
+    <div class="brand"><span class="brand-mark">L</span> LinguaLab</div>
+    <h1>Entrar</h1>
+    {% if messages %}<ul class="messages">{% for m in messages %}<li class="message {{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="field"><label for="id_username">Usuário</label>{{ form.username }}</div>
+      <div class="field"><label for="id_password">Senha</label>{{ form.password }}</div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-primary" type="submit">Entrar</button>
+    </form>
+    <p class="muted">Ainda não tem conta? <a href="{% url 'accounts:signup' %}">Cadastre-se</a>.</p>
+  </div>
+</main>
+{% endblock %}

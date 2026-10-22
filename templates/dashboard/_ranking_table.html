@@ -1,0 +1,47 @@
+{% load core_tags %}
+<div class="table-wrap">
+  <table class="table-stack table-stack-wide">
+    <thead>
+      <tr>
+        <th>Texto</th>
+        <th class="num">Tentativas</th>
+        {% if kind == "best" %}<th class="num">Acertos/tent.</th>{% else %}<th class="num">Erros/tent.</th>{% endif %}
+        <th class="num">Aproveitamento</th>
+        {% if kind == "best" %}<th class="num">Melhor</th>{% else %}<th class="num">Última</th>{% endif %}
+        <th>Última tentativa</th>
+        <th><span class="sr-only">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td class="cell-title">
+          <a href="{% url 'dashboard:text_report' row.text.pk %}"><strong>{{ row.text.title }}</strong></a>
+          <div class="cell-sub">{% include "partials/tags.html" with tags=row.text.tags.all %}</div>
+        </td>
+        <td class="num">{{ row.attempts }}{% if row.low_confidence %} <span class="badge badge-mid" title="Menos de {{ min_attempts }} tentativas: resultado pouco conclusivo">poucas</span>{% endif %}</td>
+        {% if kind == "best" %}<td class="num">{{ row.avg_correct|floatformat:1 }}</td>{% else %}<td class="num">{{ row.avg_wrong|floatformat:1 }}</td>{% endif %}
+        <td class="num"><span class="{{ row.avg_score|score_class }}">{{ row.avg_score|floatformat:0 }}%</span></td>
+        {% if kind == "best" %}
+          <td class="num"><span class="{{ row.best_score|score_class }}">{{ row.best_score }}%</span></td>
+        {% else %}
+          <td class="num"><span class="{{ row.last_score|score_class }}">{{ row.last_score }}%</span></td>
+        {% endif %}
+        <td>{{ row.last_attempt_at|date:"d/m/Y H:i" }}</td>
+        <td class="cell-actions">
+          <div class="btn-group">
+            <a class="btn btn-sm" href="{{ row.text.get_absolute_url }}#quizzes" title="Escolher um quiz existente">Quizzes</a>
+            <form method="post" action="{% url 'quizzes:quiz_generate' row.text.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="start">
+              <button class="btn btn-sm" type="submit" data-loading-text="Gerando…" title="Gerar um novo quiz e responder">+ Quiz</button>
+            </form>
+            <a class="btn btn-sm btn-ghost" href="{% url 'quizzes:attempt_history' %}?texto={{ row.text.pk }}">Histórico</a>
+          </div>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="empty">{{ empty_message }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}{{ text.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a> / {{ text.title }}</div>
+    <h1>{{ text.title }}</h1>
+    <div class="btn-group">
+      <span class="badge">{{ text.source_language|lang_name }} → {{ text.target_language|lang_name }}</span>
+      <span class="badge">Quizzes em {{ text.effective_quiz_language|lang_name }}</span>
+      <span class="badge {% if text.status == 'ready' %}badge-good{% elif text.status == 'error' %}badge-bad{% else %}badge-mid{% endif %}">{{ text.get_status_display }}</span>
+      <span class="badge">{{ chunks|length }} trecho{{ chunks|length|pluralize }}</span>
+      {% include "partials/tags.html" with tags=text.tags.all %}
+    </div>
+    <p class="muted">Criado em {{ text.created_at|date:"d/m/Y H:i" }} · Atualizado em {{ text.updated_at|date:"d/m/Y H:i" }}</p>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-primary" href="{% url 'library:study' text.pk %}">Estudar</a>
+    <a class="btn" href="{% url 'library:study' text.pk %}?modo=reading_audio">🔊 Ouvir</a>
+    <a class="btn" href="{% url 'dashboard:text_report' text.pk %}">Desempenho</a>
+    <a class="btn" href="{% url 'library:text_update' text.pk %}">Editar</a>
+    <a class="btn btn-danger" href="{% url 'library:text_delete' text.pk %}">Excluir</a>
+  </div>
+</div>
+
+{% if text.status == "error" %}
+<div class="message error message-action">Falha na tradução: {{ text.status_message }}</div>
+{% elif text.translation_is_stale %}
+<form class="message warning message-action" method="post" action="{% url 'library:text_translate' text.pk %}">
+  {% csrf_token %}
+  <span>{% if text.translation_is_simulated %}A tradução atual é <strong>simulada</strong> (feita sem IA).{% else %}Há trechos sem tradução ou com tradução desatualizada.{% endif %}</span>
+  <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Traduzindo…">Traduzir com IA agora</button>
+</form>
+{% endif %}
+
+<section class="card" id="quizzes">
+  <div class="card-header">
+    <div>
+      <h2>Quizzes</h2>
+      <small>Combine os seis tipos de pergunta. Cada quiz é independente: novos quizzes não alteram os anteriores nem seus resultados.</small>
+    </div>
+    <div class="btn-group">
+      <a class="btn btn-primary" href="{% url 'quizzes:quiz_new' text.pk %}">+ Criar quiz</a>
+      <form method="post" action="{% url 'quizzes:quiz_generate' text.pk %}">
+        {% csrf_token %}
+        <button class="btn" type="submit" data-loading-text="Gerando quiz…" title="Combinação padrão de tipos de pergunta">Gerar quiz rápido</button>
+      </form>
+    </div>
+  </div>
+  {% include "quizzes/_quiz_table.html" %}
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Áudio</h2>
+    <a class="btn btn-sm" href="{% url 'library:study' text.pk %}?modo=audio_only">Treinar só com áudio</a>
+  </div>
+  {% include "partials/player.html" %}
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Texto e tradução</h2>
+    <form method="post" action="{% url 'library:text_translate' text.pk %}" class="btn-group">
+      {% csrf_token %}
+      <button class="btn btn-sm" type="submit" name="force" value="1" data-loading-text="Traduzindo…" data-confirm="Gerar novamente a tradução de todos os trechos?">Refazer tradução</button>
+    </form>
+  </div>
+  {% for chunk in chunks %}
+  <div class="chunk">
+    <div>
+      <div class="chunk-label">Trecho {{ forloop.counter }} · {{ text.source_language|lang_name }}
+        <button class="btn btn-sm btn-ghost" type="button" data-play-chunk="{{ forloop.counter0 }}" title="Ouvir este trecho">🔊 Ouvir</button>
+      </div>
+      <div class="chunk-original" data-chunk-index="{{ forloop.counter0 }}">{{ chunk.content }}</div>
+    </div>
+    <div>
+      <div class="chunk-label">{{ text.target_language|lang_name }}{% if chunk.is_simulated %} · <span class="score-mid">simulada</span>{% elif chunk.translation_is_stale %} · <span class="score-mid">desatualizada</span>{% endif %}</div>
+      <div class="chunk-translation">{{ chunk.translation|default:"Tradução pendente." }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/tts.js' %}"></script>{% endblock %}
