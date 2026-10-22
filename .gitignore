@@ -7,3 +7,10 @@ staticfiles/
 .coverage
 htmlcov/
 media/
+
+# Terraform
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

@@ -1,0 +1,35 @@
+# Ajustes de produção sobre o docker-compose.yml: Caddy com HTTPS na frente e só ele exposto.
+# Ative com COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml no .env.
+services:
+  db:
+    ports: !reset []
+
+  web:
+    ports: !reset []
+    # Com DJANGO_HTTPS=True o Django redireciona HTTP para HTTPS; o cabeçalho evita que o
+    # healthcheck receba esse redirecionamento (e que o scheduler nunca suba).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/contas/entrar/', headers={'X-Forwarded-Proto': 'https'}))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?defina DOMAIN no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:

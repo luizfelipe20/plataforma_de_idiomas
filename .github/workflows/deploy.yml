@@ -1,0 +1,75 @@
+# Testa todo push e pull request; publica na VM da Oracle a cada push na main.
+#
+# Secrets do repositório (Settings → Secrets and variables → Actions):
+#   VM_HOST             IP público da VM (output public_ip do Terraform)
+#   VM_SSH_PRIVATE_KEY  chave privada do pipeline (a pública vai em ssh_public_keys)
+#   VM_KNOWN_HOSTS      saída de `ssh-keyscan <IP>`
+#   PROD_ENV_FILE       conteúdo completo do .env de produção
+# Variável do repositório:
+#   APP_DOMAIN          domínio da aplicação, usado no teste final
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python manage.py test
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    env:
+      VM: ubuntu@${{ secrets.VM_HOST }}
+      APP_DIR: /opt/lingualab
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
+
+      # Numa VM recém-criada, o cloud-init ainda pode estar instalando o Docker.
+      - name: Aguardar o cloud-init
+        run: ssh "$VM" 'cloud-init status --wait > /dev/null'
+
+      - name: Enviar o código
+        run: |
+          rsync -az --delete \
+            --exclude .git --exclude .github --exclude infra \
+            --exclude .env --exclude .venv --exclude db.sqlite3 \
+            --exclude media --exclude staticfiles \
+            ./ "$VM:$APP_DIR/"
+
+      - name: Enviar o .env
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: printf '%s\n' "$PROD_ENV_FILE" | ssh "$VM" "umask 077 && cat > $APP_DIR/.env"
+
+      - name: Subir os containers
+        run: ssh "$VM" "cd $APP_DIR && docker compose up -d --build --remove-orphans && docker image prune -f"
+
+      - name: Verificar o site
+        run: curl -fsS -o /dev/null --retry 10 --retry-delay 6 --retry-all-errors "https://${{ vars.APP_DOMAIN }}/contas/entrar/"

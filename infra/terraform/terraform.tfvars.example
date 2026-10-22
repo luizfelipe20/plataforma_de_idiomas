@@ -1,0 +1,15 @@
+# Copie para terraform.tfvars (fica fora do Git) e preencha.
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaa..."
+user_ocid        = "ocid1.user.oc1..aaaa..."
+fingerprint      = "aa:bb:cc:..."
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "sa-saopaulo-1"
+compartment_ocid = "ocid1.tenancy.oc1..aaaa..."
+
+ssh_public_keys = [
+  "ssh-ed25519 AAAA... voce@maquina",
+  "ssh-ed25519 AAAA... github-actions-deploy",
+]
+
+# ocpus         = 2
+# memory_in_gbs = 12

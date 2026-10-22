@@ -8,3 +8,5 @@ staticfiles/
 .git/
 .vscode/
 *.json.bak
+infra/
+.github/
