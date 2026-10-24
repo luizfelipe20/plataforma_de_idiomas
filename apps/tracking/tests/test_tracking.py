@@ -232,3 +232,40 @@ class TimeAccountingTests(TestCase):
         self.client.force_login(other)
         stolen = self.client.post(response.json()["beat_url"], "{}", content_type="application/json")
         self.assertEqual(stolen.status_code, 404)
+
+
+class SessionHistoryDeleteTests(TestCase):
+    def setUp(self):
+        self.user = make_user()
+        login(self.client, self.user)
+        self.current = AccessSession.objects.get(user=self.user)
+        now = timezone.now()
+        self.old = [
+            services.start_access_session(self.user, now=now - timedelta(days=d)) for d in (1, 2)
+        ]
+        for access in self.old:
+            services.close_access_session(access, access.started_at + timedelta(minutes=5), AccessSession.EndReason.LOGOUT)
+        self.study = services.start_study_session(self.user, StudySession.Activity.READING, access=self.old[0])
+
+    def test_delete_single_session_keeps_study_time(self):
+        response = self.client.post(reverse("tracking:session_delete", args=[self.old[0].pk]))
+        self.assertRedirects(response, reverse("tracking:session_history"))
+        self.assertFalse(AccessSession.objects.filter(pk=self.old[0].pk).exists())
+        self.study.refresh_from_db()
+        self.assertIsNone(self.study.access_session)
+
+    def test_cannot_delete_current_or_other_users_session(self):
+        other = services.start_access_session(make_user(username="outro"))
+        for pk in (self.current.pk, other.pk):
+            self.assertEqual(self.client.post(reverse("tracking:session_delete", args=[pk])).status_code, 404)
+        self.assertEqual(AccessSession.objects.filter(pk__in=[self.current.pk, other.pk]).count(), 2)
+
+    def test_delete_requires_post(self):
+        self.assertEqual(self.client.get(reverse("tracking:session_delete", args=[self.old[0].pk])).status_code, 405)
+
+    def test_clear_history_keeps_current_session(self):
+        other = services.start_access_session(make_user(username="outro"))
+        self.client.post(reverse("tracking:session_clear"))
+        self.assertEqual(list(AccessSession.objects.filter(user=self.user)), [self.current])
+        self.assertTrue(AccessSession.objects.filter(pk=other.pk).exists())
+        self.assertEqual(self.client.get(reverse("dashboard:index")).status_code, 200)

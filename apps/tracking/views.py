@@ -1,9 +1,10 @@
 import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -85,4 +86,35 @@ def session_history(request):
         }
         for s in page
     ]
-    return render(request, "tracking/session_history.html", {"page": page, "rows": rows})
+    return render(
+        request, "tracking/session_history.html", {"page": page, "rows": rows, "can_clear": _deletable_sessions(request).exists()}
+    )
+
+
+def _deletable_sessions(request):
+    """Sessões do usuário, exceto a atual (que continua em uso pelo middleware)."""
+    qs = AccessSession.objects.filter(user=request.user)
+    if request.access_session is not None:
+        qs = qs.exclude(pk=request.access_session.pk)
+    return qs
+
+
+@login_required
+@require_POST
+def session_delete(request, pk):
+    # O tempo de estudo é mantido: as sessões de estudo apenas perdem o vínculo (SET_NULL).
+    session = get_object_or_404(_deletable_sessions(request), pk=pk)
+    session.delete()
+    messages.success(request, "Sessão excluída do histórico.")
+    return redirect("tracking:session_history")
+
+
+@login_required
+@require_POST
+def session_clear(request):
+    deleted, _ = _deletable_sessions(request).delete()
+    if deleted:
+        messages.success(request, f"{deleted} sess{'ões' if deleted != 1 else 'ão'} excluída{'s' if deleted != 1 else ''} do histórico.")
+    else:
+        messages.info(request, "Não há sessões para excluir.")
+    return redirect("tracking:session_history")
