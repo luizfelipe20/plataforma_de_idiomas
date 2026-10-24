@@ -50,7 +50,6 @@ Requisito: Docker com o plugin Compose. São três serviços:
 ```bash
 cp .env.example .env            # coloque sua ANTHROPIC_API_KEY (opcional, veja abaixo)
 docker compose up -d --build    # constrói a imagem e sobe tudo; migrações rodam sozinhas
-docker compose exec web python manage.py seed_demo          # opcional: usuário demo / demo12345
 docker compose exec web python manage.py createsuperuser    # opcional: acesso ao /admin/
 ```
 
@@ -95,12 +94,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python manage.py migrate
-python manage.py seed_demo      # opcional: usuário "demo" / senha "demo12345" com dados de exemplo
 python manage.py runserver
 ```
 
-Acesse http://127.0.0.1:8000, crie uma conta em **Cadastre-se** ou entre com o usuário de
-demonstração. Se o Docker estiver rodando, a porta 8000 estará ocupada: use
+Acesse http://127.0.0.1:8000 e crie uma conta em **Cadastre-se**. Se o Docker estiver rodando,
+a porta 8000 estará ocupada: use
 `python manage.py runserver 8080` ou pare os containers. Os dados do SQLite e do PostgreSQL do
 Docker são independentes.
 
@@ -351,7 +349,7 @@ config/                 settings (via variáveis de ambiente), urls
 apps/core/              idiomas, provedores de IA (Claude e offline), utilitários, templatetags
 apps/accounts/          cadastro, login e logout
 apps/library/           Text, TextChunk, Tag · services/chunking.py, services/texts.py (tradução),
-                        services/tts.py (áudio) · comando seed_demo
+                        services/tts.py (áudio)
 apps/quizzes/           Quiz, Question, Option, QuizAttempt, AttemptAnswer · kinds.py (tipos de
                         pergunta), services.py (geração, validação, correção), forms.py (construtor)
 apps/dashboard/         services.py (indicadores, rankings, relatório) · views
