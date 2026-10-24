@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}{{ term.term }} · Termos para reforçar{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'vocabulary:term_list' %}">Termos para reforçar</a> / {{ term.term }}</div>
+    <h1 class="term-detail-term" lang="{{ term.language }}">{{ term.term }}</h1>
+    <div class="btn-group">
+      <span class="badge">{{ term.language|lang_name }}</span>
+      <span class="badge badge-bad">Marcado {{ term.times_marked }}×</span>
+      <span class="badge">{{ practice_texts|length }} texto{{ practice_texts|length|pluralize }} de prática</span>
+    </div>
+    <p class="muted">Adicionado em {{ term.created_at|date:"d/m/Y H:i" }} · Atualizado em {{ term.updated_at|date:"d/m/Y H:i" }}</p>
+  </div>
+  <form method="post" action="{% url 'vocabulary:term_delete' term.pk %}" data-confirm="Remover “{{ term.term }}” da lista?">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Remover da lista</button>
+  </form>
+</div>
+
+<div class="quiz-layout">
+  <div>
+    <section class="card" data-edit-row>
+      <div class="card-header">
+        <h2>Significado</h2>
+        <div class="btn-group">
+          <button class="btn btn-sm" type="button" data-edit-toggle>Editar</button>
+          <form method="post" action="{% url 'vocabulary:term_explain' %}">
+            {% csrf_token %}
+            <input type="hidden" name="terms" value="{{ term.pk }}">
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm" type="submit" data-loading-text="Explicando…"{% if term.meaning %} data-confirm="Substituir o significado atual pela explicação da IA?"{% endif %}>Explicar com IA</button>
+          </form>
+        </div>
+      </div>
+      <p data-edit-view class="term-meaning">{{ term.meaning|default:"Sem significado ainda. Escreva o seu ou peça uma explicação à IA." }}</p>
+      <form data-edit-form class="hidden term-meaning-form" method="post" action="{% url 'vocabulary:term_update' term.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="field"><textarea name="meaning" aria-label="Significado de {{ term.term }}">{{ term.meaning }}</textarea></div>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Salvar</button></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Contexto</h2>
+      {% if term.context %}
+      <blockquote class="term-context" lang="{{ term.language }}">{{ term.context }}</blockquote>
+      {% else %}
+      <p class="muted">Nenhuma frase registrada.</p>
+      {% endif %}
+      {% if term.source_text %}<p class="muted">Última marcação em <a href="{{ term.source_text.get_absolute_url }}">{{ term.source_text.title }}</a>.</p>{% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Aparece nos seus textos</h2>
+      <ul class="plain-list">
+        {% for text in texts_with_term %}
+        <li><a href="{{ text.get_absolute_url }}">{{ text.title }}</a>{% if text in practice_texts %} <span class="badge">prática</span>{% endif %}</li>
+        {% empty %}
+        <li class="muted">Nenhum texto da biblioteca contém este termo.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+
+  <aside class="card">
+    <div class="card-header"><h2>Praticar este termo</h2></div>
+    <p class="muted">A IA escreve um texto novo usando “{{ term.term }}”. Para praticar vários termos juntos, selecione-os na <a href="{% url 'vocabulary:term_list' %}">lista</a>.</p>
+    <form method="post" action="{% url 'vocabulary:practice_create' %}" class="form-grid">
+      {% csrf_token %}
+      <input type="hidden" name="terms" value="{{ term.pk }}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="field">
+        <label for="{{ practice_form.length.id_for_label }}">{{ practice_form.length.label }}</label>
+        {{ practice_form.length }}
+      </div>
+      <div class="field">
+        <label for="{{ practice_form.topic.id_for_label }}">{{ practice_form.topic.label }}</label>
+        {{ practice_form.topic }}
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit" data-loading-text="Gerando texto…">Gerar texto de prática</button></div>
+    </form>
+    {% if practice_texts %}
+    <h3>Textos de prática</h3>
+    <ul class="plain-list">
+      {% for text in practice_texts %}
+      <li><a href="{{ text.get_absolute_url }}">{{ text.title }}</a> <small class="muted">{{ text.created_at|date:"d/m/Y" }}</small></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

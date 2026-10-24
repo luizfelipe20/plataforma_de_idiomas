@@ -61,6 +61,21 @@ def term_list(request):
 
 
 @login_required
+def term_detail(request, pk):
+    term = get_object_or_404(DifficultTerm.objects.select_related("source_text"), pk=pk, owner=request.user)
+    return render(
+        request,
+        "vocabulary/term_detail.html",
+        {
+            "term": term,
+            "practice_texts": term.practice_texts.order_by("-created_at"),
+            "texts_with_term": services.texts_with_term(term),
+            "practice_form": PracticeTextForm(owner=request.user),
+        },
+    )
+
+
+@login_required
 @require_POST
 def term_mark(request):
     """Marca a seleção feita no texto como termo difícil (chamada via fetch)."""
@@ -75,7 +90,14 @@ def term_mark(request):
     except ValueError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
     return JsonResponse(
-        {"id": term.pk, "term": term.term, "meaning": term.meaning, "times_marked": term.times_marked, "created": created},
+        {
+            "id": term.pk,
+            "term": term.term,
+            "meaning": term.meaning,
+            "url": term.get_absolute_url(),
+            "times_marked": term.times_marked,
+            "created": created,
+        },
         status=201 if created else 200,
     )
 

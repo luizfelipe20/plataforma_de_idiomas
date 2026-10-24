@@ -146,19 +146,19 @@
   });
 
   /* ------------------------------------------------------------------ */
-  /* Termos difíceis: destaque e marcação por seleção                    */
+  /* Termos para reforçar: destaque e marcação por seleção               */
   /* ------------------------------------------------------------------ */
   const termsEl = document.getElementById("difficult-terms");
   let difficultTerms = termsEl ? JSON.parse(termsEl.textContent) : [];
 
   function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
-  // Reescreve o texto do elemento envolvendo os termos marcados em <mark>.
+  // Reescreve o texto do elemento envolvendo os termos marcados em links para o detalhe do termo.
   function highlightTerms(root) {
     const plain = root.textContent;
     if (!difficultTerms.length) { root.textContent = plain; return; }
-    const meanings = {};
-    difficultTerms.forEach(function (t) { meanings[t.term.toLowerCase()] = t.meaning; });
+    const byTerm = {};
+    difficultTerms.forEach(function (t) { byTerm[t.term.toLowerCase()] = t; });
     const alternatives = difficultTerms.map(function (t) { return escapeRegExp(t.term); }).join("|");
     // Idiomas sem espaços entre palavras não têm limite de palavra.
     const bounded = !/^(ja|zh|ko)/.test(root.getAttribute("lang") || "");
@@ -168,11 +168,15 @@
     let last = 0;
     plain.replace(re, function (match, _g, offset) {
       if (offset > last) frag.appendChild(document.createTextNode(plain.slice(last, offset)));
-      const mark = document.createElement("mark");
+      const term = byTerm[match.toLowerCase()] || {};
+      const mark = document.createElement(term.url ? "a" : "mark");
       mark.className = "term-mark";
       mark.textContent = match;
-      const meaning = meanings[match.toLowerCase()];
-      mark.title = meaning || "Termo marcado como difícil";
+      if (term.url) {
+        mark.href = term.url;
+        mark.draggable = false;  // não atrapalha a seleção de trechos que começam no termo
+      }
+      mark.title = (term.meaning ? term.meaning + " · " : "") + "Clique para ver o termo";
       frag.appendChild(mark);
       last = offset + match.length;
       return match;
@@ -256,7 +260,7 @@
       markBtn.disabled = true;
       postJSON(popover.getAttribute("data-term-url"), data).then(function (term) {
         if (!difficultTerms.some(function (t) { return t.term.toLowerCase() === term.term.toLowerCase(); })) {
-          difficultTerms.push({ term: term.term, meaning: term.meaning });
+          difficultTerms.push({ term: term.term, meaning: term.meaning, url: term.url });
           difficultTerms.sort(function (a, b) { return b.term.length - a.term.length; });
         }
         termSources().forEach(highlightTerms);

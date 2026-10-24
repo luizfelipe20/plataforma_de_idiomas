@@ -52,9 +52,19 @@ def mark_term(owner, raw_term, text, context=""):
 
 
 def terms_for_language(owner, language):
-    """Termos usados para destacar o texto: [{term, meaning}] (mais longos primeiro)."""
-    terms = DifficultTerm.objects.filter(owner=owner, language=language).values("term", "meaning")
-    return sorted(terms, key=lambda t: -len(t["term"]))
+    """Termos usados para destacar o texto: [{term, meaning, url}] (mais longos primeiro)."""
+    terms = DifficultTerm.objects.filter(owner=owner, language=language)
+    return [
+        {"term": t.term, "meaning": t.meaning, "url": t.get_absolute_url()}
+        for t in sorted(terms, key=lambda t: -len(t.term))
+    ]
+
+
+def texts_with_term(term, limit=20):
+    """Textos do usuário, no idioma do termo, cujo conteúdo contém o termo."""
+    return Text.objects.filter(
+        owner=term.owner, source_language=term.language, content__icontains=term.term
+    ).order_by("-updated_at")[:limit]
 
 
 def explain_terms(terms, *, provider=None):

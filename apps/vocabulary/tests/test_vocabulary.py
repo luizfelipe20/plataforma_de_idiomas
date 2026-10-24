@@ -100,6 +100,37 @@ class TermViewsTests(TestCase):
             self.assertContains(response, 'id="difficult-terms"')
             self.assertContains(response, f'data-term-source="{self.text.pk}"')
 
+    def test_marked_terms_link_to_their_detail_page(self):
+        data = self.mark("tram").json()
+        term = DifficultTerm.objects.get(pk=data["id"])
+        self.assertEqual(data["url"], reverse("vocabulary:term_detail", args=[term.pk]))
+        response = self.client.get(self.text.get_absolute_url())
+        self.assertEqual(response.context["difficult_terms"][0]["url"], data["url"])
+        self.assertContains(self.client.get(reverse("vocabulary:term_list")), f'href="{data["url"]}"')
+
+    def test_detail_page_shows_term_and_texts_containing_it(self):
+        term = DifficultTerm.objects.get(pk=self.mark("tram", context="She takes the tram.").json()["id"])
+        make_text(self.user, title="Sem o termo", content="Nothing related here.")
+        response = self.client.get(term.get_absolute_url())
+        self.assertContains(response, "She takes the tram.")
+        self.assertEqual([t.title for t in response.context["texts_with_term"]], [self.text.title])
+        self.assertContains(response, f'name="terms" value="{term.pk}"')
+
+    def test_detail_is_private(self):
+        term = DifficultTerm.objects.get(pk=self.mark("tram").json()["id"])
+        self.client.logout()
+        other = make_user(username="outro")
+        self.client.login(username=other.username, password=PASSWORD)
+        self.assertEqual(self.client.get(term.get_absolute_url()).status_code, 404)
+
+    def test_actions_from_detail_return_to_it(self):
+        term = DifficultTerm.objects.get(pk=self.mark("tram").json()["id"])
+        url = term.get_absolute_url()
+        response = self.client.post(reverse("vocabulary:term_update", args=[term.pk]), {"meaning": "bonde", "next": url})
+        self.assertRedirects(response, url)
+        response = self.client.post(reverse("vocabulary:term_explain"), {"terms": [term.pk], "next": url})
+        self.assertRedirects(response, url)
+
     def test_list_filters_and_orders_by_times_marked(self):
         self.mark("tram")
         self.mark("hospitals")

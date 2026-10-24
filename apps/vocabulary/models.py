@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import Lower
+from django.urls import reverse
 
 from apps.core.languages import LANGUAGE_CHOICES
 
@@ -31,3 +32,6 @@ class DifficultTerm(models.Model):
 
     def __str__(self):
         return self.term
+
+    def get_absolute_url(self):
+        return reverse("vocabulary:term_detail", args=[self.pk])

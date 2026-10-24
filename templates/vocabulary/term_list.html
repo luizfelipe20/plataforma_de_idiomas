@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load core_tags %}
-{% block title %}Termos difíceis{% endblock %}
+{% block title %}Termos para reforçar{% endblock %}
 {% block content %}
 <div class="page-header">
   <div>
-    <h1>Termos difíceis</h1>
-    <p>Palavras e frases que você marcou ao ler. Selecione um trecho de qualquer texto para incluí-lo aqui; os mais marcados aparecem primeiro.</p>
+    <h1>Termos para reforçar</h1>
+    <p>Palavras e frases que você quer reforçar, marcadas durante a leitura. Selecione um trecho de qualquer texto para incluí-lo aqui; os mais marcados aparecem primeiro.</p>
   </div>
 </div>
 
@@ -39,7 +39,7 @@
           <tr data-edit-row>
             <td><input type="checkbox" name="terms" value="{{ term.pk }}" form="practice-form" aria-label="Selecionar {{ term.term }}"></td>
             <td class="cell-title">
-              <strong lang="{{ term.language }}">{{ term.term }}</strong> <span class="badge">{{ term.language|lang_name }}</span>
+              <a href="{{ term.get_absolute_url }}"><strong lang="{{ term.language }}">{{ term.term }}</strong></a> <span class="badge">{{ term.language|lang_name }}</span>
               {% if term.context %}<div class="cell-sub term-cell-context" lang="{{ term.language }}">“{{ term.context }}”</div>{% endif %}
               {% if term.source_text %}<div class="cell-sub term-cell-context">em <a href="{{ term.source_text.get_absolute_url }}">{{ term.source_text.title }}</a></div>{% endif %}
             </td>
@@ -66,7 +66,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">{% if q or language %}Nenhum termo encontrado.{% else %}Nenhum termo marcado ainda. Abra um texto e selecione as palavras ou frases que achar difíceis.{% endif %}</td></tr>
+          <tr><td colspan="6" class="empty">{% if q or language %}Nenhum termo encontrado.{% else %}Nenhum termo marcado ainda. Abra um texto e selecione as palavras ou frases que quer reforçar.{% endif %}</td></tr>
         {% endfor %}
         </tbody>
       </table>

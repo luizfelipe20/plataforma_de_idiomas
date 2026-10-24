@@ -34,7 +34,7 @@
 
     <div data-reader class="{% if mode == 'audio_only' %}hidden{% endif %}">
       <div class="study-stage" data-stage data-chunk-index="0" data-term-source="{{ text.pk }}" lang="{{ text.source_language }}">{{ chunks.0.content }}</div>
-      <p class="muted term-hint">Selecione uma palavra ou frase para marcá-la como difícil.</p>
+      <p class="muted term-hint">Selecione uma palavra ou frase para adicioná-la aos termos para reforçar.</p>
       <details class="study-translation" {% if mode == "reading" %}open{% endif %}>
         <summary>Tradução ({{ text.target_language|lang_name }})</summary>
         <div data-stage-translation lang="{{ text.target_language }}">{{ chunks.0.translation|default:"Tradução pendente." }}</div>

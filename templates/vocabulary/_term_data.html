@@ -1,5 +1,5 @@
-{% comment %}Termos difíceis já marcados no idioma do texto: o app.js os destaca e permite marcar novos.{% endcomment %}
+{% comment %}Termos para reforçar já marcados no idioma do texto: o app.js os destaca e permite marcar novos.{% endcomment %}
 {{ difficult_terms|json_script:"difficult-terms" }}
 <div class="term-popover hidden" data-term-popover data-term-url="{% url 'vocabulary:term_mark' %}" role="status">
-  <button class="btn btn-sm btn-primary" type="button" data-term-mark>+ Marcar como difícil</button>
+  <button class="btn btn-sm btn-primary" type="button" data-term-mark>+ Reforçar este termo</button>
 </div>
