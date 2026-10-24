@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -94,7 +95,7 @@ def text_create(request):
         save_text(text, tags=form.cleaned_data["tags"], new_tag_names=form.cleaned_data["new_tags"])
         _report_translation(request, text, created=True)
         return redirect(text)
-    return render(request, "library/text_form.html", {"form": form})
+    return render(request, "library/text_form.html", {"form": form, "chunk_size": settings.TEXT_CHUNK_MAX_CHARS})
 
 
 @login_required
@@ -106,7 +107,7 @@ def text_update(request, pk):
         save_text(text, tags=form.cleaned_data["tags"], new_tag_names=form.cleaned_data["new_tags"])
         _report_translation(request, text, created=False)
         return redirect(text)
-    return render(request, "library/text_form.html", {"form": form, "text": text})
+    return render(request, "library/text_form.html", {"form": form, "text": text, "chunk_size": settings.TEXT_CHUNK_MAX_CHARS})
 
 
 def _report_translation(request, text, created):

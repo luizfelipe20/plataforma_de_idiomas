@@ -24,7 +24,7 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 | Área | O que faz |
 |---|---|
 | **Biblioteca** | Cadastro, edição, exclusão e busca de textos. Filtros combináveis por tags (qualquer ou todas), idioma e ordenação, com contagem de textos por tag. Cada cartão tem atalhos para Estudar, 🔊 Ouvir, Quizzes, Editar e Excluir. |
-| **Trechos** | Textos acima de 500 caracteres são divididos em trechos de até 500 caracteres, preferindo fim de frase e depois limite de palavra. O conteúdo original é preservado byte a byte e a ordem é mantida. |
+| **Trechos** | Textos acima de 800 caracteres são divididos em trechos de até 800 caracteres, preferindo fim de frase e depois limite de palavra. O conteúdo original é preservado byte a byte e a ordem é mantida. |
 | **Tradução** | Gerada por IA por trecho e armazenada. Ao editar, só os trechos alterados são traduzidos de novo; mudar o idioma de destino retraduz tudo. Cada trecho guarda qual provedor o traduziu: traduções do modo offline aparecem como **simuladas**, e a página do texto oferece “Traduzir com IA agora”. Falhas ficam registradas na “situação do processamento” e podem ser repetidas. |
 | **Tags** | Criação, renomeação e exclusão (a exclusão remove só as associações). Tags também podem ser criadas no formulário do texto. |
 | **Quizzes** | Quantos quizzes quiser por texto, cada um com versão, título opcional e configuração próprios. Os [seis tipos de pergunta](#tipos-de-pergunta) podem ser combinados, com quantidade por tipo (até 10 por tipo e 20 por quiz). Cada pergunta tem 5 alternativas (A–E) e exatamente 1 correta, o que é validado no código e garantido por constraint no banco. A IA recebe as perguntas e respostas já usadas no texto para não repeti-las. |
@@ -160,7 +160,7 @@ Todas as opções ficam no `.env` (modelo comentado em [.env.example](.env.examp
 | Quizzes | `QUIZ_MAX_QUESTIONS` (20), `QUIZ_MAX_PER_KIND` (10), `QUIZ_GENERATION_ROUNDS` (3), `QUIZ_SIMILARITY_THRESHOLD`, `QUIZ_ATTEMPT_ABANDON_HOURS` |
 | Dashboard | `DASHBOARD_REVIEW_THRESHOLD` (70%), `DASHBOARD_MIN_ATTEMPTS`, `DASHBOARD_PRIOR_WEIGHT` |
 | Sessões | `SESSION_INACTIVITY_TIMEOUT_SECONDS`, `SESSION_INACTIVITY_WARNING_SECONDS`, `SESSION_ABANDON_TIMEOUT_SECONDS`, `SESSION_ACTIVE_GAP_SECONDS`, `SESSION_HEARTBEAT_SECONDS`, `STUDY_HEARTBEAT_SECONDS`, `STUDY_MAX_CREDIT_SECONDS` |
-| Outros | `TEXT_CHUNK_MAX_CHARS` (500), `CLEANUP_INTERVAL_SECONDS` (Docker) |
+| Outros | `TEXT_CHUNK_MAX_CHARS` (800), `CLEANUP_INTERVAL_SECONDS` (Docker) |
 
 A combinação usada pelo botão “Gerar quiz rápido” é `QUIZ_DEFAULT_PLAN` em
 [config/settings.py](config/settings.py): 2 de interpretação, 1 de completar frase, 1 de ordem das

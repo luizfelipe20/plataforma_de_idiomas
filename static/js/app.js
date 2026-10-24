@@ -136,7 +136,7 @@
   /* Contador de caracteres e trechos */
   document.querySelectorAll("[data-char-count]").forEach(function (el) {
     const target = document.getElementById(el.getAttribute("data-char-count"));
-    const max = parseInt(el.getAttribute("data-chunk-size"), 10) || 500;
+    const max = parseInt(el.getAttribute("data-chunk-size"), 10) || 800;
     function update() {
       const len = target.value.length;
       el.textContent = len + " caracteres · ~" + Math.max(1, Math.ceil(len / max)) + " trecho(s) de até " + max;

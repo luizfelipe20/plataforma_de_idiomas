@@ -172,7 +172,7 @@ TTS_TIMEOUT_SECONDS = env_int("TTS_TIMEOUT_SECONDS", 20)
 # ---------------------------------------------------------------------------
 # Regras de negócio parametrizáveis
 # ---------------------------------------------------------------------------
-TEXT_CHUNK_MAX_CHARS = env_int("TEXT_CHUNK_MAX_CHARS", 500)
+TEXT_CHUNK_MAX_CHARS = env_int("TEXT_CHUNK_MAX_CHARS", 800)
 # Alternativas por pergunta nos quizzes novos (quizzes antigos guardam o próprio valor).
 QUIZ_OPTIONS_PER_QUESTION = 5
 # Limites da configuração de um quiz (soma das quantidades por tipo).
