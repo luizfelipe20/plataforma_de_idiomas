@@ -26,6 +26,8 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 | **Biblioteca** | Cadastro, edição, exclusão e busca de textos. Filtros combináveis por tags (qualquer ou todas), idioma e ordenação, com contagem de textos por tag. Cada cartão tem atalhos para Estudar, 🔊 Ouvir, Quizzes, Editar e Excluir. |
 | **Trechos** | Textos acima de 800 caracteres são divididos em trechos de até 800 caracteres, preferindo fim de frase e depois limite de palavra. O conteúdo original é preservado byte a byte e a ordem é mantida. |
 | **Tradução** | Gerada por IA por trecho e armazenada. Ao editar, só os trechos alterados são traduzidos de novo; mudar o idioma de destino retraduz tudo. Cada trecho guarda qual provedor o traduziu: traduções do modo offline aparecem como **simuladas**, e a página do texto oferece “Traduzir com IA agora”. Falhas ficam registradas na “situação do processamento” e podem ser repetidas. |
+| **Termos difíceis** | Selecione uma palavra ou frase do texto original (na página do texto ou na tela de estudo) e toque em “Marcar como difícil”. O termo entra na lista com a frase em que apareceu e o texto de origem; marcar de novo aumenta o contador, e os mais marcados aparecem primeiro. Os termos ficam destacados em todos os textos do mesmo idioma, com o significado ao passar o mouse. Na lista dá para buscar, filtrar por idioma, editar ou remover cada termo e pedir à IA uma explicação dos selecionados. |
+| **Textos de prática** | Na lista de termos, escolha até 15 termos de um idioma, o tamanho e, se quiser, um assunto: a IA escreve um texto novo que usa todos eles. O texto vai para a biblioteca com a tag “Prática de vocabulário”, tradução, áudio e quizzes, e o aviso no topo lista os termos praticados. Se a IA deixar algum termo de fora, a aplicação avisa. |
 | **Tags** | Criação, renomeação e exclusão (a exclusão remove só as associações). Tags também podem ser criadas no formulário do texto. |
 | **Quizzes** | Quantos quizzes quiser por texto, cada um com versão, título opcional e configuração próprios. Os [seis tipos de pergunta](#tipos-de-pergunta) podem ser combinados, com quantidade por tipo (até 10 por tipo e 20 por quiz). Cada pergunta tem 5 alternativas (A–E) e exatamente 1 correta, o que é validado no código e garantido por constraint no banco. A IA recebe as perguntas e respostas já usadas no texto para não repeti-las. |
 | **Tentativas** | Cada envio cria um registro novo (nunca sobrescreve). O resultado mostra pontuação de 0 a 100, acertos e erros, o tipo de cada pergunta, a resposta escolhida, a correta, a explicação em português e, nas perguntas de áudio, o trecho ouvido. |
@@ -233,7 +235,7 @@ Quizzes criados antes dos tipos de pergunta continuam funcionando com 4 alternat
   fila (Celery/RQ); as funções já são independentes da camada web.
 
 Para trocar de provedor, implemente `AIProvider` ([apps/core/ai/base.py](apps/core/ai/base.py)),
-que recebe um `QuizRequest` e devolve um `GeneratedQuiz`, e registre-o em `PROVIDERS`
+(tradução, quizzes, explicação de termos e textos de prática), e registre-o em `PROVIDERS`
 ([apps/core/ai/__init__.py](apps/core/ai/__init__.py)).
 
 ### Text-to-Speech — gTTS (servidor) com a voz do navegador como reserva
@@ -355,6 +357,7 @@ apps/quizzes/           Quiz, Question, Option, QuizAttempt, AttemptAnswer · ki
 apps/dashboard/         services.py (indicadores, rankings, relatório) · views
 apps/tracking/          AccessSession, StudySession · services.py, middleware, sinais,
                         comando close_stale_sessions
+apps/vocabulary/        DifficultTerm · services.py (marcação, explicação e textos de prática)
 templates/  static/     HTML, CSS mobile-first e JS (cronômetro, menu, tabelas, player, gráficos SVG)
 Dockerfile, docker-compose.yml, docker/entrypoint.sh
 ```

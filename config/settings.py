@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.library",
     "apps.quizzes",
     "apps.tracking",
+    "apps.vocabulary",
     "apps.dashboard",
 ]
 

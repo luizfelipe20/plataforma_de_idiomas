@@ -5,7 +5,7 @@ import anthropic
 import httpx2
 from django.test import SimpleTestCase
 
-from apps.core.ai import AIServiceError, QuizRequest
+from apps.core.ai import AIServiceError, PracticeTextRequest, QuizRequest
 from apps.core.ai.anthropic_provider import AnthropicProvider
 from apps.core.ai.mock_provider import MockProvider
 from apps.core.languages import get_language
@@ -126,6 +126,38 @@ class AnthropicProviderTests(SimpleTestCase):
         client = SimpleNamespace(beta=SimpleNamespace(messages=FakeMessages(response)))  # noqa: E501
         with self.assertRaises(AIServiceError):
             AnthropicProvider(client=client).translate_segments(["a"], EN, PT)
+
+
+class AnthropicVocabularyTests(SimpleTestCase):
+    def test_explain_terms_sends_context_and_parses(self):
+        client, messages = fake_client({"explanations": ["bonde", "consultas"]})
+        result = AnthropicProvider(client=client).explain_terms(
+            [("tram", "She takes the tram."), ("appointments", "")], EN, PT
+        )
+        self.assertEqual(result, ["bonde", "consultas"])
+        prompt = messages.calls[0]["messages"][0]["content"]
+        self.assertIn("<context>She takes the tram.</context>", prompt)
+        self.assertIn("Brazilian Portuguese", prompt)
+
+    def test_explain_terms_count_mismatch(self):
+        client, _ = fake_client({"explanations": ["bonde"]})
+        with self.assertRaises(AIServiceError):
+            AnthropicProvider(client=client).explain_terms([("tram", ""), ("app", "")], EN, PT)
+
+    def test_practice_text_request_and_parsing(self):
+        client, messages = fake_client({"title": "A trip", "content": "I took the tram."})
+        request = PracticeTextRequest(terms=(("tram", "bonde"),), source_language=EN, target_language=PT, words=120, topic="travel")
+        result = AnthropicProvider(client=client).generate_practice_text(request)
+        self.assertEqual((result.title, result.content, result.model), ("A trip", "I took the tram.", "claude-opus-5-5"))
+        prompt = messages.calls[0]["messages"][0]["content"]
+        for expected in ("- tram (meaning: bonde)", "about 120 words", "Topic: travel"):
+            self.assertIn(expected, prompt)
+
+    def test_practice_text_empty_content(self):
+        client, _ = fake_client({"title": "x", "content": "  "})
+        request = PracticeTextRequest(terms=(("tram", ""),), source_language=EN, target_language=PT, words=120)
+        with self.assertRaises(AIServiceError):
+            AnthropicProvider(client=client).generate_practice_text(request)
 
 
 class MockProviderTests(SimpleTestCase):

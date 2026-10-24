@@ -33,7 +33,8 @@
     {% endif %}
 
     <div data-reader class="{% if mode == 'audio_only' %}hidden{% endif %}">
-      <div class="study-stage" data-stage data-chunk-index="0" lang="{{ text.source_language }}">{{ chunks.0.content }}</div>
+      <div class="study-stage" data-stage data-chunk-index="0" data-term-source="{{ text.pk }}" lang="{{ text.source_language }}">{{ chunks.0.content }}</div>
+      <p class="muted term-hint">Selecione uma palavra ou frase para marcá-la como difícil.</p>
       <details class="study-translation" {% if mode == "reading" %}open{% endif %}>
         <summary>Tradução ({{ text.target_language|lang_name }})</summary>
         <div data-stage-translation lang="{{ text.target_language }}">{{ chunks.0.translation|default:"Tradução pendente." }}</div>
@@ -75,6 +76,7 @@
   </aside>
 </div>
 {{ chunk_translations|json_script:"chunk-translations" }}
+{% include "vocabulary/_term_data.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -93,6 +95,7 @@
     current = Math.max(0, Math.min(texts.length - 1, i));
     stage.textContent = texts[current];
     stage.setAttribute("data-chunk-index", current);
+    window.LinguaLab.highlightTerms(stage);
     stageTr.textContent = translations[current] || "Tradução pendente.";
     dots.forEach(function (d, idx) {
       d.classList.toggle("active", idx === current);

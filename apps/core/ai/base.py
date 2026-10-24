@@ -59,6 +59,29 @@ class QuizRequest:
     variation_seed: int = 0
 
 
+@dataclass(frozen=True)
+class PracticeTextRequest:
+    """
+    Pedido de um texto novo para fixar termos difíceis.
+
+    `terms` é uma tupla de pares (termo, significado); o significado pode ser vazio.
+    """
+
+    terms: tuple
+    source_language: object
+    target_language: object
+    words: int
+    topic: str = ""
+    variation_seed: int = 0
+
+
+@dataclass
+class GeneratedPracticeText:
+    title: str
+    content: str
+    model: str = ""
+
+
 class AIProvider:
     name = "base"
 
@@ -68,4 +91,15 @@ class AIProvider:
 
     def generate_quiz(self, request):
         """Gera as perguntas descritas em `request` (QuizRequest) e devolve um GeneratedQuiz."""
+        raise NotImplementedError
+
+    def explain_terms(self, terms, source_language, target_language):
+        """
+        Explica termos difíceis. `terms` é uma lista de pares (termo, frase de contexto);
+        devolve uma lista de mesmo tamanho com explicações curtas em `target_language`.
+        """
+        raise NotImplementedError
+
+    def generate_practice_text(self, request):
+        """Escreve um texto novo usando os termos de `request` (PracticeTextRequest)."""
         raise NotImplementedError

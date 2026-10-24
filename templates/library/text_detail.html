@@ -24,6 +24,10 @@
   </div>
 </div>
 
+{% if practiced_terms %}
+<div class="message info">Texto de prática dos termos: {% for term in practiced_terms %}<strong>{{ term.term }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}. <a href="{% url 'vocabulary:term_list' %}">Ver lista de termos</a></div>
+{% endif %}
+
 {% if text.status == "error" %}
 <div class="message error message-action">Falha na tradução: {{ text.status_message }}</div>
 {% elif text.translation_is_stale %}
@@ -61,7 +65,10 @@
 
 <section class="card">
   <div class="card-header">
-    <h2>Texto e tradução</h2>
+    <div>
+      <h2>Texto e tradução</h2>
+      <small>Selecione uma palavra ou frase do texto original para marcá-la como difícil.</small>
+    </div>
     <form method="post" action="{% url 'library:text_translate' text.pk %}" class="btn-group">
       {% csrf_token %}
       <button class="btn btn-sm" type="submit" name="force" value="1" data-loading-text="Traduzindo…" data-confirm="Gerar novamente a tradução de todos os trechos?">Refazer tradução</button>
@@ -73,7 +80,7 @@
       <div class="chunk-label">Trecho {{ forloop.counter }} · {{ text.source_language|lang_name }}
         <button class="btn btn-sm btn-ghost" type="button" data-play-chunk="{{ forloop.counter0 }}" title="Ouvir este trecho">🔊 Ouvir</button>
       </div>
-      <div class="chunk-original" data-chunk-index="{{ forloop.counter0 }}">{{ chunk.content }}</div>
+      <div class="chunk-original" data-chunk-index="{{ forloop.counter0 }}" data-term-source="{{ text.pk }}" lang="{{ text.source_language }}">{{ chunk.content }}</div>
     </div>
     <div>
       <div class="chunk-label">{{ text.target_language|lang_name }}{% if chunk.is_simulated %} · <span class="score-mid">simulada</span>{% elif chunk.translation_is_stale %} · <span class="score-mid">desatualizada</span>{% endif %}</div>
@@ -82,5 +89,6 @@
   </div>
   {% endfor %}
 </section>
+{% include "vocabulary/_term_data.html" %}
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/tts.js' %}"></script>{% endblock %}

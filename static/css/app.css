@@ -399,6 +399,12 @@ input[type=range] { min-height: var(--tap); accent-color: var(--primary); }
 }
 .chunk-dots button.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
 .speaking { background: var(--primary-soft); border-radius: 4px; }
+.term-mark { background: var(--mid-soft); color: inherit; border-bottom: 2px solid var(--mid); border-radius: 2px; padding: 0 .05em; cursor: help; }
+.term-hint { font-size: .8125rem; margin: .5rem 0 0; }
+.term-popover { position: absolute; z-index: 60; filter: drop-shadow(0 4px 10px rgba(16, 24, 40, .18)); }
+.term-cell-context { color: var(--muted); font-size: .875rem; font-weight: 400; }
+.term-meaning { white-space: pre-wrap; }
+.term-meaning-form textarea { min-height: 5rem; }
 .hidden-text-note { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; background: var(--surface-2); border-radius: var(--radius); color: var(--muted); }
 .hidden-text-note .icon { font-size: 1.6rem; line-height: 1; }
 .spacer { height: 1rem; }

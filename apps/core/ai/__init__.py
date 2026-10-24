@@ -1,7 +1,16 @@
 from django.conf import settings
 from django.utils.module_loading import import_string
 
-from .base import AIProvider, AIServiceError, GeneratedQuestion, GeneratedQuiz, QuizRequest, SkippedKind
+from .base import (
+    AIProvider,
+    AIServiceError,
+    GeneratedPracticeText,
+    GeneratedQuestion,
+    GeneratedQuiz,
+    PracticeTextRequest,
+    QuizRequest,
+    SkippedKind,
+)
 
 PROVIDERS = {
     "anthropic": "apps.core.ai.anthropic_provider.AnthropicProvider",
@@ -28,8 +37,10 @@ def set_provider_override(provider):
 __all__ = [
     "AIProvider",
     "AIServiceError",
+    "GeneratedPracticeText",
     "GeneratedQuestion",
     "GeneratedQuiz",
+    "PracticeTextRequest",
     "QuizRequest",
     "SkippedKind",
     "get_provider",

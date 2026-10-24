@@ -11,6 +11,7 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.core.languages import LANGUAGE_CHOICES
 from apps.quizzes.models import QuizAttempt, StudyMode
 from apps.quizzes.services import quizzes_with_stats
+from apps.vocabulary.services import terms_for_language
 
 from .forms import TagForm, TextForm
 from .models import Tag, Text, TextChunk
@@ -145,6 +146,8 @@ def text_detail(request, pk):
             "quizzes": quizzes_with_stats(text, request.user),
             "language_choices": LANGUAGE_CHOICES,
             "study_modes": StudyMode.choices,
+            "difficult_terms": terms_for_language(request.user, text.source_language),
+            "practiced_terms": text.practiced_terms.all(),
             **player_context(text.chunks.all()),
         },
     )
@@ -180,6 +183,7 @@ def study(request, pk):
             "mode": mode,
             "study_modes": StudyMode.choices,
             "activity": activity,
+            "difficult_terms": terms_for_language(request.user, text.source_language),
             "quizzes": quizzes_with_stats(text, request.user),
         },
     )

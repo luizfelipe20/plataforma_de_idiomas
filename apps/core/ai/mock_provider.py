@@ -11,7 +11,7 @@ import difflib
 import random
 import re
 
-from .base import AIProvider, GeneratedQuestion, GeneratedQuiz, SkippedKind
+from .base import AIProvider, GeneratedPracticeText, GeneratedQuestion, GeneratedQuiz, SkippedKind
 
 SENTENCE_RE = re.compile(r"[^.!?。！？\n]+[.!?。！？]?")
 WORD_RE = re.compile(r"[^\W\d_]{4,}", re.UNICODE)
@@ -63,6 +63,15 @@ LEXICON = {
     "worry": ("fret", "relax"), "agree": ("concur", "disagree"), "famous": ("well-known", "unknown"),
     "narrow": ("tight", "wide"), "sunny": ("bright", "cloudy"), "small": ("little", "large"),
 }
+# Frases-modelo do texto de prática simulado; {t} é o termo a fixar.
+PRACTICE_SENTENCES = {
+    "en": ["Today I want to remember “{t}”.", "I read “{t}” again and wrote it down.",
+           "My teacher used “{t}” in an example.", "Now “{t}” sounds familiar to me."],
+    "pt": ["Hoje quero lembrar de “{t}”.", "Li “{t}” de novo e anotei.",
+           "Minha professora usou “{t}” em um exemplo.", "Agora “{t}” já me parece familiar."],
+    "es": ["Hoy quiero recordar “{t}”.", "Leí “{t}” otra vez y lo anoté.",
+           "Mi profesora usó “{t}” en un ejemplo.", "Ahora “{t}” me suena familiar."],
+}
 FILLER_WORDS = ["always", "never", "perhaps", "yesterday", "city", "office", "journey", "school", "quiet", "bright"]
 
 
@@ -75,6 +84,17 @@ class MockProvider(AIProvider):
 
     def translate_segments(self, segments, source_language, target_language):
         return [f"[{target_language.code.upper()} · tradução simulada] {seg}" for seg in segments]
+
+    def explain_terms(self, terms, source_language, target_language):
+        return [f"[{target_language.code.upper()} · explicação simulada] {term}" for term, _ in terms]
+
+    def generate_practice_text(self, request):
+        sentences = PRACTICE_SENTENCES.get(request.source_language.code, PRACTICE_SENTENCES["en"])
+        rng = random.Random(f"{request.terms}:{request.variation_seed}")
+        lines = [rng.choice(sentences).format(t=term) for term, _ in request.terms]
+        paragraphs = [" ".join(lines[i:i + 3]) for i in range(0, len(lines), 3)]
+        title = "Practice: " + ", ".join(term for term, _ in request.terms[:3])
+        return GeneratedPracticeText(title=title[:200], content="\n\n".join(paragraphs), model="mock")
 
     # ------------------------------------------------------------------
     def generate_quiz(self, request):

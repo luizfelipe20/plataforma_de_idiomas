@@ -103,7 +103,7 @@
     const form = ev.target;
     const confirmMsg = form.getAttribute("data-confirm");
     if (confirmMsg && !window.confirm(confirmMsg)) { ev.preventDefault(); return; }
-    const btn = form.querySelector("[data-loading-text]");
+    const btn = ev.submitter && ev.submitter.hasAttribute("data-loading-text") ? ev.submitter : form.querySelector("[data-loading-text]");
     if (btn) {
       btn.classList.add("loading");
       btn.textContent = btn.getAttribute("data-loading-text");
@@ -144,6 +144,131 @@
     target.addEventListener("input", update);
     update();
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Termos difíceis: destaque e marcação por seleção                    */
+  /* ------------------------------------------------------------------ */
+  const termsEl = document.getElementById("difficult-terms");
+  let difficultTerms = termsEl ? JSON.parse(termsEl.textContent) : [];
+
+  function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  // Reescreve o texto do elemento envolvendo os termos marcados em <mark>.
+  function highlightTerms(root) {
+    const plain = root.textContent;
+    if (!difficultTerms.length) { root.textContent = plain; return; }
+    const meanings = {};
+    difficultTerms.forEach(function (t) { meanings[t.term.toLowerCase()] = t.meaning; });
+    const alternatives = difficultTerms.map(function (t) { return escapeRegExp(t.term); }).join("|");
+    // Idiomas sem espaços entre palavras não têm limite de palavra.
+    const bounded = !/^(ja|zh|ko)/.test(root.getAttribute("lang") || "");
+    const pattern = bounded ? "(?<![\\p{L}\\p{N}])(" + alternatives + ")(?![\\p{L}\\p{N}])" : "(" + alternatives + ")";
+    const re = new RegExp(pattern, "giu");
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    plain.replace(re, function (match, _g, offset) {
+      if (offset > last) frag.appendChild(document.createTextNode(plain.slice(last, offset)));
+      const mark = document.createElement("mark");
+      mark.className = "term-mark";
+      mark.textContent = match;
+      const meaning = meanings[match.toLowerCase()];
+      mark.title = meaning || "Termo marcado como difícil";
+      frag.appendChild(mark);
+      last = offset + match.length;
+      return match;
+    });
+    frag.appendChild(document.createTextNode(plain.slice(last)));
+    root.textContent = "";
+    root.appendChild(frag);
+  }
+  window.LinguaLab.highlightTerms = highlightTerms;
+
+  const termSources = function () { return document.querySelectorAll("[data-term-source]"); };
+  termSources().forEach(highlightTerms);
+
+  const popover = document.querySelector("[data-term-popover]");
+  if (popover) {
+    document.body.appendChild(popover);  // posicionado em relação à página
+    const markBtn = popover.querySelector("[data-term-mark]");
+    const markLabel = markBtn.textContent;
+    let pending = null;
+    // No toque, a seleção pode sumir antes do clique no botão: não esconde enquanto ele é pressionado.
+    let pressing = false;
+    popover.addEventListener("pointerdown", function () { pressing = true; });
+
+    function hidePopover() { popover.classList.add("hidden"); pending = null; pressing = false; }
+
+    // Frase em volta da seleção, usada como contexto do termo.
+    function sentenceAround(plain, start, end) {
+      let from = start, to = end;
+      while (from > 0 && !/[.!?。！？\n]/.test(plain[from - 1])) from--;
+      while (to < plain.length && !/[.!?。！？\n]/.test(plain[to])) to++;
+      return plain.slice(from, Math.min(plain.length, to + 1)).trim();
+    }
+
+    function readSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+      const range = sel.getRangeAt(0);
+      const node = range.commonAncestorContainer;
+      const root = (node.nodeType === 1 ? node : node.parentElement).closest("[data-term-source]");
+      const term = sel.toString().replace(/\s+/g, " ").trim();
+      if (!root || !term || term.length > 200) return null;
+      const before = document.createRange();
+      before.setStart(root, 0);
+      before.setEnd(range.startContainer, range.startOffset);
+      const start = before.toString().length;
+      return {
+        root: root,
+        rect: range.getBoundingClientRect(),
+        data: {
+          text_id: root.getAttribute("data-term-source"),
+          term: term,
+          context: sentenceAround(root.textContent, start, start + sel.toString().length),
+        },
+      };
+    }
+
+    let selTimer = null;
+    document.addEventListener("selectionchange", function () {
+      clearTimeout(selTimer);
+      selTimer = setTimeout(function () {
+        const found = readSelection();
+        if (!found) { if (!pressing) hidePopover(); return; }
+        pending = found;
+        markBtn.disabled = false;
+        markBtn.textContent = markLabel;
+        popover.classList.remove("hidden");
+        // Abaixo da seleção: no celular, o menu nativo de copiar fica acima dela.
+        const width = popover.offsetWidth;
+        const left = Math.min(Math.max(8, found.rect.left + found.rect.width / 2 - width / 2), window.innerWidth - width - 8);
+        popover.style.left = (left + window.scrollX) + "px";
+        popover.style.top = (found.rect.bottom + window.scrollY + 8) + "px";
+      }, 200);
+    });
+
+    // Mantém a seleção ao tocar no botão.
+    markBtn.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
+    markBtn.addEventListener("click", function () {
+      if (!pending) return;
+      const data = pending.data;
+      pressing = false;
+      markBtn.disabled = true;
+      postJSON(popover.getAttribute("data-term-url"), data).then(function (term) {
+        if (!difficultTerms.some(function (t) { return t.term.toLowerCase() === term.term.toLowerCase(); })) {
+          difficultTerms.push({ term: term.term, meaning: term.meaning });
+          difficultTerms.sort(function (a, b) { return b.term.length - a.term.length; });
+        }
+        termSources().forEach(highlightTerms);
+        window.getSelection().removeAllRanges();
+        markBtn.textContent = term.created ? "✓ Adicionado à lista" : "✓ Marcado " + term.times_marked + "×";
+        setTimeout(hidePopover, 1200);
+      }).catch(function () {
+        markBtn.disabled = false;
+        markBtn.textContent = "Erro — tentar de novo";
+      });
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Cronômetro e sessão                                                 */

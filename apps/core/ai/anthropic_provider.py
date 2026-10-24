@@ -5,7 +5,7 @@ import logging
 import anthropic
 from django.conf import settings
 
-from .base import AIProvider, AIServiceError, GeneratedQuestion, GeneratedQuiz, SkippedKind
+from .base import AIProvider, AIServiceError, GeneratedPracticeText, GeneratedQuestion, GeneratedQuiz, SkippedKind
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,42 @@ QUIZ_SYSTEM = (
     "about the text: if the text does not support a requested question type, report it in `skipped` "
     "instead of making things up."
 )
+
+TERMS_SYSTEM = (
+    "You help a language learner with words and expressions they found hard to understand. "
+    "For each term, give a short, clear explanation of what it means in the given context "
+    "(one or two sentences), mentioning the usual translation when there is one. No notes outside the JSON."
+)
+
+PRACTICE_SYSTEM = (
+    "You write short, natural texts that help a language learner memorize specific words and expressions. "
+    "Every requested term must appear verbatim (same spelling and form) at least once, used in a context "
+    "that makes its meaning clear. Keep the rest of the text simple and coherent so the terms stand out. "
+    "Do not add a glossary, notes or markup: return only the title and the plain text."
+)
+
+
+def _terms_schema():
+    return {
+        "type": "object",
+        "properties": {
+            "explanations": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["explanations"],
+        "additionalProperties": False,
+    }
+
+
+def _practice_schema():
+    return {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+        },
+        "required": ["title", "content"],
+        "additionalProperties": False,
+    }
 
 
 def _translation_schema():
@@ -219,3 +255,49 @@ class AnthropicProvider(AIProvider):
         ]
         skipped = [SkippedKind(str(s.get("kind", "")), str(s.get("reason", "")).strip()) for s in data.get("skipped", [])]
         return GeneratedQuiz(questions=questions, skipped=skipped, model=model)
+
+    def explain_terms(self, terms, source_language, target_language):
+        listed = "\n".join(
+            f"<term index=\"{i}\">\n<text>{term}</text>\n<context>{context}</context>\n</term>"
+            for i, (term, context) in enumerate(terms)
+        )
+        prompt = (
+            f"The learner is studying {source_language.english_name} and marked these {len(terms)} terms as hard "
+            f"to understand. Explain each one in {target_language.english_name}.\n\n{listed}\n\n"
+            f"Return a JSON object whose `explanations` array has exactly {len(terms)} items, in the same order."
+        )
+        data, _ = self._request_json(
+            system=TERMS_SYSTEM,
+            prompt=prompt,
+            schema=_terms_schema(),
+            effort=settings.AI_TRANSLATION_EFFORT,
+        )
+        explanations = data.get("explanations") or []
+        if len(explanations) != len(terms):
+            raise AIServiceError(
+                f"A IA retornou {len(explanations)} explicações para {len(terms)} termos.", retryable=True
+            )
+        return [str(e).strip() for e in explanations]
+
+    def generate_practice_text(self, request):
+        listed = "\n".join(
+            f"- {term}" + (f" (meaning: {meaning})" if meaning else "") for term, meaning in request.terms
+        )
+        topic = f"Topic: {request.topic}\n" if request.topic else ""
+        prompt = (
+            f"Write a new text in {request.source_language.english_name} of about {request.words} words that "
+            f"uses ALL of these terms:\n{listed}\n\n{topic}"
+            f"The learner's native language is {request.target_language.english_name}; write the title in "
+            f"{request.source_language.english_name}. Use paragraphs separated by blank lines. "
+            f"(Variation #{request.variation_seed}.)"
+        )
+        data, model = self._request_json(
+            system=PRACTICE_SYSTEM,
+            prompt=prompt,
+            schema=_practice_schema(),
+            effort=settings.AI_QUIZ_EFFORT,
+        )
+        content = str(data.get("content", "")).strip()
+        if not content:
+            raise AIServiceError("A IA não retornou o texto de prática.", retryable=True)
+        return GeneratedPracticeText(title=str(data.get("title", "")).strip(), content=content, model=model)
