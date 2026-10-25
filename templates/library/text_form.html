@@ -7,6 +7,7 @@
     <h1>{% if text %}Editar texto{% else %}Cadastrar texto{% endif %}</h1>
     <p>Textos acima de {{ chunk_size }} caracteres são divididos automaticamente em trechos. A tradução é gerada ao salvar.</p>
   </div>
+  {% if not text %}<a class="btn" href="{% url 'library:text_generate' %}">✨ Gerar com IA</a>{% endif %}
 </div>
 
 <form class="card" method="post" novalidate>

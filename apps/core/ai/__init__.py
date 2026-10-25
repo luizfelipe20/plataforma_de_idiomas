@@ -7,9 +7,11 @@ from .base import (
     GeneratedPracticeText,
     GeneratedQuestion,
     GeneratedQuiz,
+    GeneratedTexts,
     PracticeTextRequest,
     QuizRequest,
     SkippedKind,
+    TextGenerationRequest,
 )
 
 PROVIDERS = {
@@ -40,9 +42,11 @@ __all__ = [
     "GeneratedPracticeText",
     "GeneratedQuestion",
     "GeneratedQuiz",
+    "GeneratedTexts",
     "PracticeTextRequest",
     "QuizRequest",
     "SkippedKind",
+    "TextGenerationRequest",
     "get_provider",
     "set_provider_override",
 ]

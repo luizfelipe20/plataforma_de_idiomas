@@ -8,13 +8,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.core.ai import AIServiceError
 from apps.core.languages import LANGUAGE_CHOICES
 from apps.quizzes.models import QuizAttempt, StudyMode
 from apps.quizzes.services import quizzes_with_stats
 from apps.vocabulary.services import terms_for_language
 
-from .forms import TagForm, TextForm
+from .forms import TagForm, TextForm, TextGenerationForm
 from .models import Tag, Text, TextChunk
+from .services.generation import MAX_TEXTS_PER_REQUEST, generate_texts
 from .services import tts
 from .services.texts import save_text, translate_text
 
@@ -97,6 +99,40 @@ def text_create(request):
         _report_translation(request, text, created=True)
         return redirect(text)
     return render(request, "library/text_form.html", {"form": form, "chunk_size": settings.TEXT_CHUNK_MAX_CHARS})
+
+
+@login_required
+def text_generate(request):
+    form = TextGenerationForm(request.POST or None, owner=request.user)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        try:
+            texts = generate_texts(
+                request.user,
+                data["prompt"],
+                source_language=data["source_language"],
+                target_language=data["target_language"],
+                count=data["count"],
+                length=data["length"],
+                level=data["level"],
+                tags=data["tags"],
+                new_tag_names=data["new_tags"],
+            )
+        except AIServiceError as exc:
+            form.add_error(None, f"Não foi possível gerar os textos: {exc}")
+        else:
+            failed = [t for t in texts if t.status == Text.Status.ERROR]
+            if len(texts) == 1:
+                _report_translation(request, texts[0], created=True)
+                return redirect(texts[0])
+            titles = ", ".join(f"“{t.title}”" for t in texts)
+            messages.success(request, f"{len(texts)} textos criados: {titles}.")
+            if failed:
+                messages.warning(request, f"A tradução falhou em {len(failed)} deles; abra o texto para tentar de novo.")
+            return redirect("library:text_list")
+    return render(
+        request, "library/text_generate.html", {"form": form, "max_texts": MAX_TEXTS_PER_REQUEST}
+    )
 
 
 @login_required

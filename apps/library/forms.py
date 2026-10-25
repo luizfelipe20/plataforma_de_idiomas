@@ -1,8 +1,9 @@
 from django import forms
 
-from apps.core.languages import LANGUAGE_CHOICES
+from apps.core.languages import DEFAULT_STUDY_LANGUAGE, DEFAULT_TRANSLATION_LANGUAGE, LANGUAGE_CHOICES
 
 from .models import Tag, Text
+from .services.generation import LEVELS, MAX_PROMPT_CHARS, MAX_TEXTS_PER_REQUEST, TEXT_LENGTHS
 from .services.texts import parse_tag_names
 
 MAX_CONTENT_CHARS = 30000
@@ -53,6 +54,51 @@ class TextForm(forms.ModelForm):
         if len(names) > 20:
             raise forms.ValidationError("Crie no máximo 20 tags por vez.")
         return ", ".join(names)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("source_language") and data.get("source_language") == data.get("target_language"):
+            self.add_error("target_language", "O idioma de tradução deve ser diferente do idioma de estudo.")
+        return data
+
+
+class TextGenerationForm(forms.Form):
+    prompt = forms.CharField(
+        label="O que a IA deve escrever?",
+        max_length=MAX_PROMPT_CHARS,
+        widget=forms.Textarea(attrs={
+            "rows": 5,
+            "placeholder": "Ex.: um diálogo entre um cliente e um atendente de hotel, "
+                           "com pedidos de informação e uma reclamação educada.",
+        }),
+    )
+    source_language = forms.ChoiceField(label="Idioma de estudo", choices=LANGUAGE_CHOICES, initial=DEFAULT_STUDY_LANGUAGE)
+    target_language = forms.ChoiceField(label="Idioma de tradução", choices=LANGUAGE_CHOICES, initial=DEFAULT_TRANSLATION_LANGUAGE)
+    count = forms.IntegerField(
+        label="Quantidade de textos", min_value=1, max_value=MAX_TEXTS_PER_REQUEST, initial=1,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
+    length = forms.ChoiceField(
+        label="Tamanho de cada texto",
+        choices=[(k, f"{label} (~{words} palavras)") for k, (label, words) in TEXT_LENGTHS.items()],
+        initial="medium",
+    )
+    level = forms.ChoiceField(label="Nível", choices=[(k, label) for k, (label, _) in LEVELS.items()], required=False)
+    tags = forms.ModelMultipleChoiceField(
+        queryset=Tag.objects.none(), required=False, widget=forms.CheckboxSelectMultiple, label="Tags"
+    )
+    new_tags = TextForm.base_fields["new_tags"]
+    clean_new_tags = TextForm.clean_new_tags
+
+    def __init__(self, *args, owner, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tags"].queryset = Tag.objects.filter(owner=owner)
+
+    def clean_prompt(self):
+        prompt = self.cleaned_data["prompt"].strip()
+        if not prompt:
+            raise forms.ValidationError("Descreva o texto que a IA deve escrever.")
+        return prompt
 
     def clean(self):
         data = super().clean()

@@ -24,6 +24,7 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 | Área | O que faz |
 |---|---|
 | **Biblioteca** | Cadastro, edição, exclusão e busca de textos. Filtros combináveis por tags (qualquer ou todas), idioma e ordenação, com contagem de textos por tag. Cada cartão tem atalhos para Estudar, 🔊 Ouvir, Quizzes, Editar e Excluir. |
+| **Gerar com IA** | Tela para criar textos a partir de um pedido livre (prompt): assunto, formato e o que praticar. Escolha os idiomas, de 1 a 5 textos por vez, o tamanho (~120, ~250 ou ~400 palavras), o nível (A1–C2) e as tags. A IA escreve todos numa chamada só, cada um com uma abordagem diferente, e cada texto é salvo e traduzido como um cadastro normal. Se a geração falhar, nenhum texto é criado. |
 | **Trechos** | Textos acima de 800 caracteres são divididos em trechos de até 800 caracteres, preferindo fim de frase e depois limite de palavra. O conteúdo original é preservado byte a byte e a ordem é mantida. |
 | **Tradução** | Gerada por IA por trecho e armazenada. Ao editar, só os trechos alterados são traduzidos de novo; mudar o idioma de destino retraduz tudo. Cada trecho guarda qual provedor o traduziu: traduções do modo offline aparecem como **simuladas**, e a página do texto oferece “Traduzir com IA agora”. Falhas ficam registradas na “situação do processamento” e podem ser repetidas. |
 | **Termos para reforçar** | Selecione uma palavra ou frase do texto original (na página do texto ou na tela de estudo) e toque em “Reforçar este termo”. O termo entra na lista com a frase em que apareceu e o texto de origem; marcar de novo aumenta o contador, e os mais marcados aparecem primeiro. Os termos ficam realçados em vermelho em todos os textos do mesmo idioma, com o significado ao passar o mouse; clicar no termo abre a página dele, com significado, contexto, textos em que aparece, textos de prática e a opção de gerar um texto só com ele. Na lista dá para buscar, filtrar por idioma, editar ou remover cada termo e pedir à IA uma explicação dos selecionados. |
@@ -233,7 +234,7 @@ Quizzes criados antes dos tipos de pergunta continuam funcionando com 4 alternat
   fila (Celery/RQ); as funções já são independentes da camada web.
 
 Para trocar de provedor, implemente `AIProvider` ([apps/core/ai/base.py](apps/core/ai/base.py)),
-(tradução, quizzes, explicação de termos e textos de prática), e registre-o em `PROVIDERS`
+(tradução, quizzes, explicação de termos, textos de prática e textos a partir de um prompt), e registre-o em `PROVIDERS`
 ([apps/core/ai/__init__.py](apps/core/ai/__init__.py)).
 
 ### Text-to-Speech — gTTS (servidor) com a voz do navegador como reserva
@@ -349,6 +350,7 @@ config/                 settings (via variáveis de ambiente), urls
 apps/core/              idiomas, provedores de IA (Claude e offline), utilitários, templatetags
 apps/accounts/          cadastro, login e logout
 apps/library/           Text, TextChunk, Tag · services/chunking.py, services/texts.py (tradução),
+                        services/generation.py (textos a partir de um prompt),
                         services/tts.py (áudio)
 apps/quizzes/           Quiz, Question, Option, QuizAttempt, AttemptAnswer · kinds.py (tipos de
                         pergunta), services.py (geração, validação, correção), forms.py (construtor)

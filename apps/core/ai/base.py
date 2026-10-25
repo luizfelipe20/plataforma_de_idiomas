@@ -82,6 +82,25 @@ class GeneratedPracticeText:
     model: str = ""
 
 
+@dataclass(frozen=True)
+class TextGenerationRequest:
+    """Pedido de textos novos para estudo, descritos livremente pelo usuário em `prompt`."""
+
+    prompt: str
+    source_language: object
+    target_language: object
+    count: int
+    words: int
+    level: str = ""
+    variation_seed: int = 0
+
+
+@dataclass
+class GeneratedTexts:
+    texts: list = field(default_factory=list)  # lista de GeneratedPracticeText (título e conteúdo)
+    model: str = ""
+
+
 class AIProvider:
     name = "base"
 
@@ -102,4 +121,8 @@ class AIProvider:
 
     def generate_practice_text(self, request):
         """Escreve um texto novo usando os termos de `request` (PracticeTextRequest)."""
+        raise NotImplementedError
+
+    def generate_texts(self, request):
+        """Escreve os textos pedidos em `request` (TextGenerationRequest) e devolve um GeneratedTexts."""
         raise NotImplementedError

@@ -7,7 +7,10 @@
     <h1>Biblioteca de textos</h1>
     <p>{{ page.paginator.count }} de {{ total }} texto{{ total|pluralize }} exibido{{ total|pluralize }}.</p>
   </div>
-  <a class="btn btn-primary" href="{% url 'library:text_create' %}">+ Novo texto</a>
+  <div class="btn-group">
+    <a class="btn" href="{% url 'library:text_generate' %}">✨ Gerar com IA</a>
+    <a class="btn btn-primary" href="{% url 'library:text_create' %}">+ Novo texto</a>
+  </div>
 </div>
 
 <div class="library">

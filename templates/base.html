@@ -20,12 +20,15 @@
       <a href="{% url 'dashboard:index' %}" class="{% if ns == 'dashboard' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg>
         Dashboard</a>
-      <a href="{% url 'library:text_list' %}" class="{% if ns == 'library' and url_name != 'tag_list' and url_name != 'text_create' %}active{% endif %}">
+      <a href="{% url 'library:text_list' %}" class="{% if ns == 'library' and url_name != 'tag_list' and url_name != 'text_create' and url_name != 'text_generate' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
         Biblioteca</a>
       <a href="{% url 'library:text_create' %}" class="{% if url_name == 'text_create' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         Novo texto</a>
+      <a href="{% url 'library:text_generate' %}" class="{% if url_name == 'text_generate' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17v4M17 19h4"/></svg>
+        Gerar com IA</a>
       <a href="{% url 'library:tag_list' %}" class="{% if url_name == 'tag_list' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
         Tags</a>

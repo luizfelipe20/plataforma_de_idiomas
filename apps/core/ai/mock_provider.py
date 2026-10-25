@@ -11,7 +11,7 @@ import difflib
 import random
 import re
 
-from .base import AIProvider, GeneratedPracticeText, GeneratedQuestion, GeneratedQuiz, SkippedKind
+from .base import AIProvider, GeneratedPracticeText, GeneratedQuestion, GeneratedQuiz, GeneratedTexts, SkippedKind
 
 SENTENCE_RE = re.compile(r"[^.!?。！？\n]+[.!?。！？]?")
 WORD_RE = re.compile(r"[^\W\d_]{4,}", re.UNICODE)
@@ -72,6 +72,15 @@ PRACTICE_SENTENCES = {
     "es": ["Hoy quiero recordar “{t}”.", "Leí “{t}” otra vez y lo anoté.",
            "Mi profesora usó “{t}” en un ejemplo.", "Ahora “{t}” me suena familiar."],
 }
+# Frases-modelo dos textos simulados gerados a partir de um prompt; {p} é o pedido do usuário.
+GENERATED_SENTENCES = {
+    "en": ["This is a simulated text about {p}.", "It was written without AI, for testing.",
+           "Each paragraph is short and simple.", "Read it, listen to it and try a quiz."],
+    "pt": ["Este é um texto simulado sobre {p}.", "Ele foi escrito sem IA, para testes.",
+           "Cada parágrafo é curto e simples.", "Leia, ouça e tente um quiz."],
+    "es": ["Este es un texto simulado sobre {p}.", "Fue escrito sin IA, para pruebas.",
+           "Cada párrafo es corto y sencillo.", "Léelo, escúchalo y prueba un quiz."],
+}
 FILLER_WORDS = ["always", "never", "perhaps", "yesterday", "city", "office", "journey", "school", "quiet", "bright"]
 
 
@@ -95,6 +104,15 @@ class MockProvider(AIProvider):
         paragraphs = [" ".join(lines[i:i + 3]) for i in range(0, len(lines), 3)]
         title = "Practice: " + ", ".join(term for term, _ in request.terms[:3])
         return GeneratedPracticeText(title=title[:200], content="\n\n".join(paragraphs), model="mock")
+
+    def generate_texts(self, request):
+        sentences = GENERATED_SENTENCES.get(request.source_language.code, GENERATED_SENTENCES["en"])
+        topic = " ".join(request.prompt.split())[:80]
+        texts = []
+        for i in range(1, request.count + 1):
+            body = " ".join(s.format(p=topic) for s in sentences)
+            texts.append(GeneratedPracticeText(title=f"{topic[:60]} ({i})", content=f"{body}\n\n{body}"))
+        return GeneratedTexts(texts=texts, model="mock")
 
     # ------------------------------------------------------------------
     def generate_quiz(self, request):

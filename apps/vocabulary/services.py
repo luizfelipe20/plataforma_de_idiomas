@@ -7,6 +7,7 @@ from django.db.models import F
 from apps.core.ai import PracticeTextRequest, get_provider
 from apps.core.languages import get_language
 from apps.library.models import Text
+from apps.library.services.generation import TEXT_LENGTHS
 from apps.library.services.texts import save_text
 
 from .models import DifficultTerm
@@ -15,7 +16,7 @@ MAX_TERM_CHARS = 200
 MAX_CONTEXT_CHARS = 400
 MAX_PRACTICE_TERMS = 15
 PRACTICE_TAG = "Prática de vocabulário"
-PRACTICE_LENGTHS = {"short": ("Curto", 120), "medium": ("Médio", 250), "long": ("Longo", 400)}
+PRACTICE_LENGTHS = TEXT_LENGTHS
 
 
 def normalize_term(raw):

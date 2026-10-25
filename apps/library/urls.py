@@ -7,6 +7,7 @@ app_name = "library"
 urlpatterns = [
     path("", views.text_list, name="text_list"),
     path("textos/novo/", views.text_create, name="text_create"),
+    path("textos/gerar/", views.text_generate, name="text_generate"),
     path("textos/<int:pk>/", views.text_detail, name="text_detail"),
     path("textos/<int:pk>/editar/", views.text_update, name="text_update"),
     path("textos/<int:pk>/excluir/", views.text_delete, name="text_delete"),

@@ -5,7 +5,7 @@ import anthropic
 import httpx2
 from django.test import SimpleTestCase
 
-from apps.core.ai import AIServiceError, PracticeTextRequest, QuizRequest
+from apps.core.ai import AIServiceError, PracticeTextRequest, QuizRequest, TextGenerationRequest
 from apps.core.ai.anthropic_provider import AnthropicProvider
 from apps.core.ai.mock_provider import MockProvider
 from apps.core.languages import get_language
@@ -158,6 +158,33 @@ class AnthropicVocabularyTests(SimpleTestCase):
         request = PracticeTextRequest(terms=(("tram", ""),), source_language=EN, target_language=PT, words=120)
         with self.assertRaises(AIServiceError):
             AnthropicProvider(client=client).generate_practice_text(request)
+
+
+class AnthropicTextGenerationTests(SimpleTestCase):
+    def request(self, count=2):
+        return TextGenerationRequest(prompt="A hotel dialogue", source_language=EN, target_language=PT,
+                                     count=count, words=250, level="beginner")
+
+    def test_request_and_parsing(self):
+        client, messages = fake_client({"texts": [{"title": "Check-in", "content": "Hello."},
+                                                  {"title": "Complaint", "content": "Excuse me."}]})
+        result = AnthropicProvider(client=client).generate_texts(self.request())
+        self.assertEqual([t.title for t in result.texts], ["Check-in", "Complaint"])
+        prompt = messages.calls[0]["messages"][0]["content"]
+        for expected in ("<request>\nA hotel dialogue\n</request>", "Write 2 texts in English", "about 250 words",
+                         "Learner level: beginner", "exactly 2 items"):
+            self.assertIn(expected, prompt)
+
+    def test_extra_and_empty_texts_are_dropped(self):
+        client, _ = fake_client({"texts": [{"title": "a", "content": " "}, {"title": "b", "content": "B."},
+                                           {"title": "c", "content": "C."}]})
+        result = AnthropicProvider(client=client).generate_texts(self.request(count=1))
+        self.assertEqual([t.title for t in result.texts], ["b"])
+
+    def test_no_texts(self):
+        client, _ = fake_client({"texts": []})
+        with self.assertRaises(AIServiceError):
+            AnthropicProvider(client=client).generate_texts(self.request())
 
 
 class MockProviderTests(SimpleTestCase):

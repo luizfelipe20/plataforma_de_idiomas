@@ -5,7 +5,15 @@ import logging
 import anthropic
 from django.conf import settings
 
-from .base import AIProvider, AIServiceError, GeneratedPracticeText, GeneratedQuestion, GeneratedQuiz, SkippedKind
+from .base import (
+    AIProvider,
+    AIServiceError,
+    GeneratedPracticeText,
+    GeneratedQuestion,
+    GeneratedQuiz,
+    GeneratedTexts,
+    SkippedKind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +48,32 @@ PRACTICE_SYSTEM = (
     "that makes its meaning clear. Keep the rest of the text simple and coherent so the terms stand out. "
     "Do not add a glossary, notes or markup: return only the title and the plain text."
 )
+
+TEXTS_SYSTEM = (
+    "You write original reading texts for language learners, following the learner's request. "
+    "Texts are natural, coherent and suited to the requested level; when several texts are requested, "
+    "each one is distinct in content and angle. Never present invented facts about real people or events "
+    "as true. Do not add glossaries, notes, questions or markup: return only titles and plain text."
+)
+
+
+def _texts_schema():
+    return {
+        "type": "object",
+        "properties": {
+            "texts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["title", "content"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["texts"],
+        "additionalProperties": False,
+    }
 
 
 def _terms_schema():
@@ -301,3 +335,30 @@ class AnthropicProvider(AIProvider):
         if not content:
             raise AIServiceError("A IA não retornou o texto de prática.", retryable=True)
         return GeneratedPracticeText(title=str(data.get("title", "")).strip(), content=content, model=model)
+
+    def generate_texts(self, request):
+        level = f"Learner level: {request.level}.\n" if request.level else ""
+        prompt = (
+            f"<request>\n{request.prompt}\n</request>\n\n"
+            f"Write {request.count} text{'s' if request.count != 1 else ''} in {request.source_language.english_name} "
+            f"following the request above, each of about {request.words} words, with a short title in "
+            f"{request.source_language.english_name}.\n{level}"
+            f"The learner's native language is {request.target_language.english_name} (the texts are translated "
+            f"later; do not translate them yourself). Use paragraphs separated by blank lines. "
+            f"Return a JSON object whose `texts` array has exactly {request.count} items. "
+            f"(Variation #{request.variation_seed}.)"
+        )
+        data, model = self._request_json(
+            system=TEXTS_SYSTEM,
+            prompt=prompt,
+            schema=_texts_schema(),
+            effort=settings.AI_QUIZ_EFFORT,
+        )
+        texts = [
+            GeneratedPracticeText(title=str(t.get("title", "")).strip(), content=str(t.get("content", "")).strip())
+            for t in data.get("texts", [])
+        ]
+        texts = [t for t in texts if t.content][: request.count]
+        if not texts:
+            raise AIServiceError("A IA não retornou nenhum texto.", retryable=True)
+        return GeneratedTexts(texts=texts, model=model)
