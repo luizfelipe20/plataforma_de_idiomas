@@ -28,6 +28,7 @@
             </select>
             <button class="btn btn-sm btn-primary" type="submit">Responder</button>
             <a class="btn btn-sm" href="{{ quiz.get_absolute_url }}">Histórico</a>
+            <a class="btn btn-sm btn-danger" href="{% url 'quizzes:quiz_delete' quiz.pk %}" aria-label="Excluir {{ quiz.label }}">Excluir</a>
           </form>
         </td>
       </tr>

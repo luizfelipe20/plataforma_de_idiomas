@@ -16,6 +16,7 @@
       {% for value, label in study_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
     </select>
     <button class="btn btn-primary" type="submit">Nova tentativa</button>
+    <a class="btn btn-danger" href="{% url 'quizzes:quiz_delete' quiz.pk %}">Excluir quiz</a>
   </form>
 </div>
 

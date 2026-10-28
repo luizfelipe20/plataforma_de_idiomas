@@ -129,6 +129,28 @@ def quiz_detail(request, pk):
 
 
 @login_required
+def quiz_delete(request, pk):
+    quiz = _user_quiz(request, pk)
+    if request.method == "POST":
+        text, label = quiz.text, quiz.label
+        quiz.delete()  # perguntas, alternativas e tentativas vão junto; o tempo de estudo é mantido
+        messages.success(request, f"{label} foi excluído.")
+        return redirect(f"{text.get_absolute_url()}#quizzes")
+    attempts = quiz.attempts.all()
+    return render(
+        request,
+        "quizzes/quiz_confirm_delete.html",
+        {
+            "quiz": quiz,
+            "text": quiz.text,
+            "question_count": quiz.questions.count(),
+            "attempt_count": attempts.count(),
+            "completed_count": attempts.filter(status=QuizAttempt.Status.COMPLETED).count(),
+        },
+    )
+
+
+@login_required
 @require_POST
 def attempt_start(request, pk):
     quiz = _user_quiz(request, pk)

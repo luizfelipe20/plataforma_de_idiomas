@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Excluir {{ quiz.label }}{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <div class="breadcrumbs"><a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / <a href="{{ quiz.get_absolute_url }}">{{ quiz.label }}</a></div>
+  <h1>Excluir “{{ quiz.label }}”?</h1>
+  <p>Esta ação remove as <strong>{{ question_count }}</strong> pergunta{{ question_count|pluralize }} do quiz e <strong>{{ attempt_count }}</strong> tentativa{{ attempt_count|pluralize }}{% if completed_count %} ({{ completed_count }} concluída{{ completed_count|pluralize }}){% endif %}, que deixam de contar no dashboard e no desempenho do texto. O texto, os outros quizzes e o tempo de estudo registrado continuam.</p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Excluir definitivamente</button>
+    <a class="btn" href="{{ quiz.get_absolute_url }}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

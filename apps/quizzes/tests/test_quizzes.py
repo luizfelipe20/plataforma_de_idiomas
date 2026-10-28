@@ -470,3 +470,44 @@ class AttemptTests(TestCase):
         self.client.force_login(make_user("outro"))
         self.assertEqual(self.client.get(reverse("quizzes:attempt_take", args=[attempt.pk])).status_code, 404)
         self.assertEqual(self.client.post(reverse("quizzes:attempt_start", args=[self.quiz.pk])).status_code, 404)
+
+
+class QuizDeleteTests(TestCase):
+    def setUp(self):
+        self.user = make_user()
+        self.client.login(username=self.user.username, password="senha-forte-123")
+        self.text = make_text(self.user)
+        self.quiz = services.generate_quiz(self.text)
+        self.other_quiz = services.generate_quiz(self.text)
+        attempt = services.start_attempt(self.quiz, self.user, "reading")
+        services.submit_attempt(attempt, answer_all(self.quiz, 3))
+        services.start_attempt(self.quiz, self.user, "reading")
+        self.url = reverse("quizzes:quiz_delete", args=[self.quiz.pk])
+
+    def test_confirmation_page_shows_what_will_be_removed(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual((response.context["attempt_count"], response.context["completed_count"]), (2, 1))
+        self.assertTrue(Quiz.objects.filter(pk=self.quiz.pk).exists())
+
+    def test_delete_removes_quiz_questions_and_attempts_only(self):
+        response = self.client.post(self.url, follow=True)
+        self.assertRedirects(response, f"{self.text.get_absolute_url()}#quizzes")
+        self.assertContains(response, f"{self.quiz.label} foi excluído.")
+        self.assertFalse(Quiz.objects.filter(pk=self.quiz.pk).exists())
+        self.assertFalse(Question.objects.filter(quiz_id=self.quiz.pk).exists())
+        self.assertFalse(QuizAttempt.objects.filter(quiz_id=self.quiz.pk).exists())
+        self.assertTrue(Quiz.objects.filter(pk=self.other_quiz.pk).exists())
+        self.assertTrue(self.text.__class__.objects.filter(pk=self.text.pk).exists())
+
+    def test_delete_buttons_are_shown(self):
+        self.assertContains(self.client.get(self.text.get_absolute_url()), self.url)
+        self.assertContains(self.client.get(self.quiz.get_absolute_url()), self.url)
+
+    def test_other_users_cannot_delete(self):
+        self.client.logout()
+        other = make_user(username="outro")
+        self.client.login(username=other.username, password="senha-forte-123")
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+        self.assertEqual(self.client.post(self.url).status_code, 404)
+        self.assertTrue(Quiz.objects.filter(pk=self.quiz.pk).exists())
