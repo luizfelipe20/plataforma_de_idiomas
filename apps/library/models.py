@@ -1,5 +1,10 @@
+import shutil
+
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.db.models.functions import Lower
 from django.urls import reverse
 
@@ -53,6 +58,16 @@ class Text(models.Model):
     status = models.CharField("situação", max_length=20, choices=Status.choices, default=Status.PENDING)
     status_message = models.CharField(max_length=500, blank=True)
     translated_at = models.DateTimeField(null=True, blank=True)
+    # Origem em vídeo (opcional): texto criado a partir da transcrição de um vídeo, de um
+    # segmento ou de um intervalo de falas, com os tempos no vídeo original.
+    source_media = models.ForeignKey(
+        "videos.MediaSource", on_delete=models.SET_NULL, null=True, blank=True, related_name="texts"
+    )
+    source_segment = models.ForeignKey(
+        "videos.MediaSegment", on_delete=models.SET_NULL, null=True, blank=True, related_name="texts"
+    )
+    source_start = models.FloatField(null=True, blank=True)
+    source_end = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField("criado em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizado em", auto_now=True)
 
@@ -79,6 +94,15 @@ class Text(models.Model):
         return any(chunk.is_simulated for chunk in self.chunks.all())
 
 
+def text_audio_dir(text):
+    # Fora da pasta do vídeo: o áudio do texto continua existindo se o vídeo for excluído.
+    return f"text-audio/{text.owner_id}/{text.pk}"
+
+
+def _chunk_audio_path(chunk, filename):
+    return f"{text_audio_dir(chunk.text)}/{filename}"
+
+
 class TextChunk(models.Model):
     """Trecho do texto original (até TEXT_CHUNK_MAX_CHARS caracteres) e sua tradução."""
 
@@ -92,6 +116,11 @@ class TextChunk(models.Model):
     translation_source_hash = models.CharField(max_length=64, blank=True)
     # Provedor que gerou a tradução ("anthropic", "mock"...).
     translation_provider = models.CharField(max_length=30, blank=True)
+    # Texto vindo de vídeo: intervalo (s, no vídeo original) em que o trecho é falado e o
+    # recorte do áudio tratado tocado pelo player. Sem intervalo, o trecho usa TTS.
+    audio_start = models.FloatField(null=True, blank=True)
+    audio_end = models.FloatField(null=True, blank=True)
+    audio_clip = models.FileField(upload_to=_chunk_audio_path, max_length=255, blank=True)
 
     class Meta:
         ordering = ["order"]
@@ -105,6 +134,10 @@ class TextChunk(models.Model):
         return self.translation_provider == "mock"
 
     @property
+    def has_real_audio(self):
+        return self.audio_start is not None and self.audio_end is not None
+
+    @property
     def translation_is_stale(self):
         return (
             not self.translation
@@ -113,3 +146,9 @@ class TextChunk(models.Model):
             # Tradução simulada deixa de valer quando uma IA real está configurada.
             or (self.is_simulated and settings.AI_PROVIDER != "mock")
         )
+
+
+@receiver(post_delete, sender=Text)
+def _delete_text_audio(sender, instance, **kwargs):
+    """Apaga os recortes de áudio tratado dos trechos junto com o texto."""
+    shutil.rmtree(default_storage.path(text_audio_dir(instance)), ignore_errors=True)

@@ -128,7 +128,9 @@
     }).catch(function (err) {
       if (self.index !== index || (err && err.name === "AbortError")) return;
       if (self.speechSupported) {
-        self.setStatus("Áudio do servidor indisponível; usando a voz do navegador.");
+        self.setStatus(self.root.hasAttribute("data-treated-audio")
+          ? "Áudio tratado do vídeo indisponível neste trecho; usando a voz sintetizada do navegador."
+          : "Áudio do servidor indisponível; usando a voz do navegador.");
         self.playBrowser(index);
       } else {
         self.setStatus("Não foi possível reproduzir o áudio deste trecho.");
@@ -191,7 +193,11 @@
   // Se o MP3 do servidor falhar, mostra o botão que usa a voz do navegador.
   document.querySelectorAll("audio[data-question-audio]").forEach(function (audio) {
     audio.addEventListener("error", function () {
-      const fallback = audio.parentElement.querySelector("[data-speak]");
+      const box = audio.parentElement;
+      const fallback = box.querySelector("[data-speak]");
+      // Áudio tratado do vídeo: avisa a falha em vez de trocar em silêncio pela voz sintetizada.
+      const notice = audio.hasAttribute("data-treated-audio") && box.querySelector("[data-audio-error]");
+      if (notice) { notice.classList.remove("hidden"); audio.classList.add("hidden"); }
       if (fallback && "speechSynthesis" in window) { audio.classList.add("hidden"); fallback.classList.remove("hidden"); }
     });
   });

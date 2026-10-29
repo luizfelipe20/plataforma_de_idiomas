@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.ai import AIServiceError
+from apps.core.http import ranged_file_response
 from apps.core.languages import LANGUAGE_CHOICES
 from apps.quizzes.models import QuizAttempt, StudyMode
 from apps.quizzes.services import quizzes_with_stats
@@ -35,13 +36,18 @@ def _user_texts(request):
 
 
 def player_context(chunks):
-    """Dados do player de áudio: texto de cada trecho e, se habilitado, a URL do MP3."""
+    """
+    Dados do player de áudio: texto de cada trecho e, se houver, a URL do MP3. Textos
+    vindos de vídeo tocam o áudio tratado do vídeo, mesmo com o TTS do servidor desligado.
+    """
     chunks = list(chunks)
+    treated = bool(chunks) and (chunks[0].text.source_media_id is not None or any(c.has_real_audio for c in chunks))
     return {
         "chunk_texts": [c.content for c in chunks],
         "chunk_audio_urls": [reverse("library:chunk_audio", args=[c.pk]) for c in chunks]
-        if tts.server_tts_enabled()
+        if treated or tts.server_tts_enabled()
         else [],
+        "player_treated_audio": treated,
     }
 
 
@@ -228,7 +234,16 @@ def study(request, pk):
 @login_required
 @require_GET
 def chunk_audio(request, pk):
-    chunk = get_object_or_404(TextChunk.objects.select_related("text"), pk=pk, text__owner=request.user)
+    chunk = get_object_or_404(TextChunk.objects.select_related("text__source_media"), pk=pk, text__owner=request.user)
+    if chunk.text.source_media_id or chunk.audio_clip or chunk.has_real_audio:
+        from apps.videos.services import chunk_clip
+
+        path = chunk_clip(chunk)
+        if path:
+            return ranged_file_response(request, path, content_type="audio/mpeg", max_age=86400)
+        if chunk.has_real_audio:
+            # Trecho do vídeo sem áudio tratado: avisa em vez de trocar pelo original ou por TTS.
+            return JsonResponse({"error": "O áudio tratado deste trecho do vídeo não está disponível."}, status=404)
     try:
         path = tts.get_chunk_audio(chunk)
     except tts.TTSError as exc:

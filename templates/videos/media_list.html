@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Vídeos{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Vídeos</h1>
+    <p>Envie um vídeo de até {{ max_hours|floatformat:0 }} horas: o áudio é extraído e tratado (menos ruído e música de fundo), dividido em segmentos de 5 minutos e transcrito em legendas sincronizadas, prontas para gerar quizzes.</p>
+  </div>
+</div>
+
+<section class="card" data-upload>
+  <div class="card-header"><h2>Enviar vídeo</h2><small class="muted">{% for ext in allowed_extensions %}{{ ext|cut:"." }}{% if not forloop.last %}, {% endif %}{% endfor %} · até {{ max_gb|floatformat:0 }} GB</small></div>
+  <form class="form-grid" data-upload-form novalidate>
+    <div class="field field-full">
+      <label for="video-file">Arquivo de vídeo</label>
+      <input type="file" id="video-file" name="file" accept="{% for ext in allowed_extensions %}{{ ext }}{% if not forloop.last %},{% endif %}{% endfor %},video/*" required>
+    </div>
+    <div class="field field-full">
+      <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+      {{ form.title }}
+    </div>
+    <div class="field">
+      <label for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>
+      {{ form.language }}
+    </div>
+    <div class="field">
+      <label for="{{ form.target_language.id_for_label }}">{{ form.target_language.label }}</label>
+      {{ form.target_language }}
+    </div>
+    <div class="field-full upload-progress hidden" data-upload-progress>
+      <div class="meter-row"><div class="meter" role="progressbar" aria-label="Progresso do envio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-upload-bar style="width:0%"></span></div><strong data-upload-percent>0%</strong></div>
+      <small class="muted" data-upload-detail aria-live="polite"></small>
+    </div>
+    <div class="message error hidden field-full" data-upload-error role="alert"></div>
+    <div class="form-actions field-full">
+      <button class="btn btn-primary" type="submit" data-upload-submit>Enviar e processar</button>
+      <button class="btn hidden" type="button" data-upload-cancel>Pausar envio</button>
+    </div>
+  </form>
+  <p class="muted note">Mantenha esta página aberta durante o envio. Se a conexão cair, abra o vídeo na lista e selecione o mesmo arquivo para continuar de onde parou. O processamento acontece no servidor: depois do envio você pode fechar a página.</p>
+</section>
+
+<section class="card stack-top">
+  <div class="card-header"><h2>Seus vídeos</h2><span class="muted">{{ media_list|length }}</span></div>
+  <div class="table-wrap">
+    <table class="table-stack table-stack-wide">
+      <thead><tr><th>Vídeo</th><th>Situação</th><th class="num">Duração</th><th class="num">Segmentos</th><th>Enviado em</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for media in media_list %}
+        <tr data-media-row="{{ media.pk }}" {% if media.is_busy %}data-media-watch data-status-url="{% url 'videos:media_status' %}"{% endif %}>
+          <td class="cell-title"><a href="{{ media.get_absolute_url }}"><strong>{{ media.title }}</strong></a><div class="cell-sub muted">{{ media.original_filename }} · {{ media.size_bytes|filesizeformat }} · {{ media.language|lang_name }}</div></td>
+          <td>{% include "videos/_status.html" %}</td>
+          <td class="num">{% if media.duration_seconds %}{{ media.duration_seconds|duration }}{% else %}—{% endif %}</td>
+          <td class="num">{{ media.segment_count }}</td>
+          <td>{{ media.created_at|date:"d/m/Y H:i" }}</td>
+          <td class="cell-actions"><a class="btn btn-sm" href="{{ media.get_absolute_url }}">Abrir</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="empty">Nenhum vídeo enviado ainda.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ upload_config|json_script:"upload-config" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/videos.js' %}"></script>{% endblock %}

@@ -12,6 +12,7 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 - [Execução local sem Docker](#execução-local-sem-docker)
 - [Configuração](#configuração)
 - [Tipos de pergunta](#tipos-de-pergunta)
+- [Módulo de vídeos](#módulo-de-vídeos)
 - [Integrações externas](#integrações-externas)
 - [Interface responsiva e acessibilidade](#interface-responsiva-e-acessibilidade)
 - [Regras de medição](#regras-de-medição)
@@ -25,6 +26,7 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 |---|---|
 | **Biblioteca** | Cadastro, edição, exclusão e busca de textos. Filtros combináveis por tags (qualquer ou todas), idioma e ordenação, com contagem de textos por tag. Cada cartão tem atalhos para Estudar, 🔊 Ouvir, Quizzes, Editar e Excluir. |
 | **Gerar com IA** | Tela para criar textos a partir de um pedido livre (prompt): assunto, formato e o que praticar. Escolha os idiomas, de 1 a 5 textos por vez, o tamanho (~120, ~250 ou ~400 palavras), o nível (A1–C2) e as tags. A IA escreve todos numa chamada só, cada um com uma abordagem diferente, e cada texto é salvo e traduzido como um cadastro normal. Se a geração falhar, nenhum texto é criado. |
+| **Vídeos** | Upload de vídeos de até 3 horas (em blocos, retomável), extração do áudio, redução de ruído e de música de fundo, segmentos de 5 minutos, transcrição automática com legendas sincronizadas e revisão manual. Vídeo inteiro, segmento ou intervalo de falas viram fonte de quizzes, criados prontos para responder, com perguntas de áudio que tocam o trecho real do vídeo. Veja [Módulo de vídeos](#módulo-de-vídeos). |
 | **Trechos** | Textos acima de 800 caracteres são divididos em trechos de até 800 caracteres, preferindo fim de frase e depois limite de palavra. O conteúdo original é preservado byte a byte e a ordem é mantida. |
 | **Tradução** | Gerada por IA por trecho e armazenada. Ao editar, só os trechos alterados são traduzidos de novo; mudar o idioma de destino retraduz tudo. Cada trecho guarda qual provedor o traduziu: traduções do modo offline aparecem como **simuladas**, e a página do texto oferece “Traduzir com IA agora”. Falhas ficam registradas na “situação do processamento” e podem ser repetidas. |
 | **Termos para reforçar** | Selecione uma palavra ou frase do texto original (na página do texto ou na tela de estudo) e toque em “Reforçar este termo”. O termo entra na lista com a frase em que apareceu e o texto de origem; marcar de novo aumenta o contador, e os mais marcados aparecem primeiro. Os termos ficam realçados em vermelho em todos os textos do mesmo idioma, com o significado ao passar o mouse; clicar no termo abre a página dele, com significado, contexto, textos em que aparece, textos de prática e a opção de gerar um texto só com ele. Na lista dá para buscar, filtrar por idioma, editar ou remover cada termo e pedir à IA uma explicação dos selecionados. |
@@ -40,13 +42,14 @@ quanto tempo você dedica aos estudos. A interface funciona em celulares, tablet
 
 ## Execução com Docker (recomendado)
 
-Requisito: Docker com o plugin Compose. São três serviços:
+Requisito: Docker com o plugin Compose. São quatro serviços:
 
 | Serviço | O que é |
 |---|---|
 | **web** | Django com Gunicorn. Aplica as migrações ao iniciar e serve os arquivos estáticos com WhiteNoise. |
 | **db** | PostgreSQL 17, com os dados no volume `pgdata`. |
 | **scheduler** | Roda `close_stale_sessions` a cada 5 minutos (`CLEANUP_INTERVAL_SECONDS`). |
+| **worker** | Processa a fila de vídeos (`process_media`): FFmpeg e transcrição com Whisper. O modelo é baixado no primeiro uso para o volume `whisper_models`. |
 
 ```bash
 cp .env.example .env            # coloque sua ANTHROPIC_API_KEY (opcional, veja abaixo)
@@ -204,6 +207,39 @@ texto (português por padrão). O idioma dos enunciados é escolhido a cada quiz
 Quizzes criados antes dos tipos de pergunta continuam funcionando com 4 alternativas
 (`Quiz.options_per_question`). A migração `quizzes.0002` classificou as perguntas existentes.
 
+## Módulo de vídeos
+
+Código em [apps/videos/](apps/videos/). Fluxo:
+
+```
+upload em blocos → validação (ffprobe) → extração do áudio → redução de ruído e música
+                 → segmentos de 5 min → transcrição por segmento → pronto para quizzes
+```
+
+| Etapa | Como funciona |
+|---|---|
+| **Upload** | O navegador envia o arquivo em blocos de 32 MB (`VIDEO_UPLOAD_CHUNK_BYTES`), abaixo do limite de 100 MB por requisição da Cloudflare. Cada bloco só é aceito se começar onde o anterior terminou; se a conexão cair, a página do vídeo continua do último byte recebido (é preciso escolher o mesmo arquivo). O corpo é lido aos poucos e gravado direto no disco. Formato, tamanho (até 8 GB) e duração (lida pelo navegador) são conferidos antes de enviar. |
+| **Validação** | `ffprobe` confirma que há faixa de áudio e que a duração é de até 3 h (`VIDEO_MAX_DURATION_SECONDS`). |
+| **Extração** | Primeira faixa de áudio em WAV mono 48 kHz (intermediário) e MP3 do áudio **original**, guardado para comparação e para preservar a voz caso o tratamento piore algum trecho. |
+| **Tratamento** | Filtros do FFmpeg voltados à fala: corte de graves e agudos fora da faixa da voz, **RNNoise** (rede neural de redução de ruído em fala, modelo *somnolent-hogwash*) misturado a 85% com o original (`AUDIO_RNNOISE_MIX`), redução de chiado por FFT e normalização de volume. Ruídos são bem reduzidos; a música de fundo é **atenuada**, não removida. |
+| **Segmentos** | MP3 de até 5 min (`AUDIO_SEGMENT_SECONDS`), cortados do WAV tratado com precisão de amostra, com identificador único (UUID), número e tempos absolutos no vídeo. Uma sobra final menor que 1 s entra no segmento anterior. |
+| **Transcrição** | **faster-whisper** local (modelo `small`, int8, CPU), com VAD para pular trechos sem fala. As falas são gravadas com tempos absolutos; as legendas são geradas a partir delas em WebVTT, SRT e JSON (vídeo inteiro com tempos do vídeo; segmento com tempos relativos ao MP3 dele). |
+| **Revisão** | Na página do segmento, as falas ficam destacadas conforme o áudio toca; clicar numa fala pula para ela. Em “Revisar transcrição” cada fala pode ser corrigida; o texto reconhecido fica guardado e pode ser restaurado. |
+| **Quizzes** | O vídeo inteiro, um segmento ou um intervalo de falas vira um texto da biblioteca vinculado à origem (o mesmo texto é reaproveitado enquanto a transcrição não muda). Os quizzes desse texto são criados prontos para responder, como os demais. As perguntas de compreensão auditiva localizam o trecho nas falas e tocam o **áudio tratado** do vídeo: o recorte é gerado na criação do quiz copiando os quadros do MP3 tratado (sem reconverter) e guardado na própria pergunta (`quiz-audio/`), fora da pasta do vídeo, então continua funcionando em novas tentativas e até se o vídeo for excluído. Cada pergunta mantém o vínculo com o segmento, os tempos das falas e o trecho transcrito. O recorte é apagado junto com a pergunta (exclusão do quiz ou do texto). O áudio original, com ruído, nunca entra no lugar: se o áudio tratado faltar, a tentativa avisa e as observações do quiz registram quantas perguntas ficaram sem ele (a voz sintetizada fica só como opção explícita). Trechos que não foram localizados nas falas usam TTS. |
+
+**Fila e falhas.** A fila fica no próprio PostgreSQL: o worker reserva um vídeo com uma atualização condicional (dois workers nunca pegam o mesmo), executa as etapas pendentes e registra cada uma em `ProcessingStep` (tentativas, tempos, mensagem), que forma o histórico exibido na página do vídeo. Uma falha para o vídeo na etapa; **Repetir processamento** continua dali, sem novo upload. Se o worker parar (deploy, queda), a etapa volta para a fila ao receber o sinal de parada, ou depois de 15 min sem sinal de vida (`VIDEO_STALE_SECONDS`). Segmentos cuja transcrição falhou são refeitos sozinhos na repetição; um segmento também pode ser transcrito de novo isoladamente.
+
+**Decisões técnicas**
+
+- *Whisper local em vez de API paga:* sem custo por minuto e sem enviar áudio a terceiros. Em CPU de 8 núcleos, o modelo `small` leva da ordem de 40–90 min para 3 h de áudio. `WHISPER_MODEL=base` é mais rápido e menos preciso; `medium`, o inverso (e pede mais RAM).
+- *RNNoise em vez de separação de voz (Demucs):* minutos em vez de horas para 3 h de vídeo, pouca memória e imagem menor. A contrapartida é que música alta não some por completo — por isso o áudio original é mantido e a mistura é ajustável.
+- *Fila no banco em vez de Celery/Redis:* nenhuma infraestrutura nova, e a retomada por etapa já exige o estado no banco.
+- *Disco local:* os arquivos ficam no volume `media`, organizados em `videos/<usuário>/<vídeo>/`. O pipeline grava pelo caminho local do `default_storage` (funções `local_path` em [pipeline.py](apps/videos/pipeline.py)); para usar armazenamento de objetos (ex.: OCI Object Storage via `django-storages`), basta trocar essas funções por download/upload temporário. Espaço aproximado por vídeo de 3 h: o original + ~170 MB de MP3 (original e tratado) + ~85 MB de segmentos, com ~2 GB temporários de WAV durante o processamento.
+- *Arquivos servidos pelo Django com suporte a Range* ([apps/core/http.py](apps/core/http.py)), sempre conferindo o dono, para o player avançar e retroceder sem baixar tudo.
+- *Texto de quiz de vídeo sem tradução automática:* transcrições longas deixariam a requisição lenta; a página do texto oferece “Traduzir com IA agora”. O texto de uma fonte é limitado a 30 mil caracteres (cerca de 40–60 min de fala); para mais, escolha um segmento ou intervalo.
+
+**Limitações conhecidas.** A remoção de música é parcial; palavras exatamente na divisa entre dois segmentos podem ser reconhecidas pela metade; no modo de estudo, o player do texto usa TTS (o áudio real é usado nas perguntas de compreensão auditiva).
+
 ## Integrações externas
 
 ### Inteligência artificial — Claude (Anthropic)
@@ -358,6 +394,9 @@ apps/dashboard/         services.py (indicadores, rankings, relatório) · views
 apps/tracking/          AccessSession, StudySession · services.py, middleware, sinais,
                         comando close_stale_sessions
 apps/vocabulary/        DifficultTerm · services.py (marcação, explicação e textos de prática)
+apps/videos/            MediaSource, ProcessingStep, MediaSegment, TranscriptCue · pipeline.py (fila e
+                        etapas), ffmpeg.py, asr.py (Whisper), services.py (upload, legendas, fontes
+                        de quiz) · comando process_media
 templates/  static/     HTML, CSS mobile-first e JS (cronômetro, menu, tabelas, player, gráficos SVG)
 Dockerfile, docker-compose.yml, docker/entrypoint.sh
 ```

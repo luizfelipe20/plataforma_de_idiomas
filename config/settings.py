@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.quizzes",
     "apps.tracking",
     "apps.vocabulary",
+    "apps.videos",
     "apps.dashboard",
 ]
 
@@ -155,6 +156,7 @@ AI_PROVIDER = os.getenv("AI_PROVIDER") or ("anthropic" if os.getenv("ANTHROPIC_A
 if "test" in sys.argv[1:2]:
     AI_PROVIDER = "mock"  # os testes nunca chamam serviços externos
     os.environ["TTS_PROVIDER"] = "browser"
+    os.environ["ASR_PROVIDER"] = "mock"
 AI_MODEL = os.getenv("AI_MODEL", "claude-opus-5-5")
 AI_TRANSLATION_EFFORT = os.getenv("AI_TRANSLATION_EFFORT", "low")
 AI_QUIZ_EFFORT = os.getenv("AI_QUIZ_EFFORT", "medium")
@@ -169,6 +171,31 @@ AI_MAX_RETRIES = env_int("AI_MAX_RETRIES", 2)
 # "browser": apenas a Web Speech API do navegador (sem chamadas externas).
 TTS_PROVIDER = os.getenv("TTS_PROVIDER", "gtts")
 TTS_TIMEOUT_SECONDS = env_int("TTS_TIMEOUT_SECONDS", 20)
+
+# ---------------------------------------------------------------------------
+# Vídeos: upload, tratamento de áudio, segmentos e transcrição
+# ---------------------------------------------------------------------------
+VIDEO_MAX_DURATION_SECONDS = env_int("VIDEO_MAX_DURATION_SECONDS", 3 * 60 * 60)
+VIDEO_MAX_UPLOAD_BYTES = env_int("VIDEO_MAX_UPLOAD_BYTES", 8 * 1024**3)
+# Blocos do upload: abaixo do limite de 100 MB por requisição da Cloudflare (plano grátis).
+VIDEO_UPLOAD_CHUNK_BYTES = env_int("VIDEO_UPLOAD_CHUNK_BYTES", 32 * 1024**2)
+VIDEO_ALLOWED_EXTENSIONS = [".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mpeg", ".mpg"]
+AUDIO_SEGMENT_SECONDS = env_int("AUDIO_SEGMENT_SECONDS", 5 * 60)
+FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg")
+FFPROBE_BINARY = os.getenv("FFPROBE_BINARY", "ffprobe")
+# Modelo do RNNoise (redução de ruído em fala). Sem o arquivo, usa só o filtro FFT do FFmpeg.
+AUDIO_RNNOISE_MODEL = os.getenv("AUDIO_RNNOISE_MODEL", "/opt/rnnoise/sh.rnnn")
+# Mistura do RNNoise com o sinal original (1 = só o tratado): abaixo de 1 preserva mais a voz.
+AUDIO_RNNOISE_MIX = float(os.getenv("AUDIO_RNNOISE_MIX", "0.85"))
+# ASR_PROVIDER: "faster_whisper" (Whisper local, sem custo por uso) ou "mock" (testes).
+ASR_PROVIDER = os.getenv("ASR_PROVIDER", "faster_whisper")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+WHISPER_CPU_THREADS = env_int("WHISPER_CPU_THREADS", 4)
+WHISPER_MODEL_DIR = os.getenv("WHISPER_MODEL_DIR", "") or None
+# Worker: intervalo de consulta da fila e tempo sem sinal de vida até devolver à fila.
+VIDEO_WORKER_POLL_SECONDS = env_int("VIDEO_WORKER_POLL_SECONDS", 5)
+VIDEO_STALE_SECONDS = env_int("VIDEO_STALE_SECONDS", 15 * 60)
 
 # ---------------------------------------------------------------------------
 # Regras de negócio parametrizáveis

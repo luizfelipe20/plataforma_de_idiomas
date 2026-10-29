@@ -1,5 +1,5 @@
 {% load core_tags %}
-<div class="player" data-tts-player data-chunks="chunk-texts" data-audio-urls="chunk-audio-urls" data-locale="{{ text.source_language|tts_locale }}" role="group" aria-label="Player de áudio">
+<div class="player" data-tts-player data-chunks="chunk-texts" data-audio-urls="chunk-audio-urls" data-locale="{{ text.source_language|tts_locale }}"{% if player_treated_audio %} data-treated-audio{% endif %} role="group" aria-label="Player de áudio">
   <button class="btn btn-sm btn-primary btn-play" type="button" data-action="play" title="Reproduzir a partir do trecho atual e seguir para os próximos">▶ Reproduzir</button>
   <button class="btn btn-sm" type="button" data-action="pause" title="Pausar ou retomar">⏯ Pausar/retomar</button>
   <button class="btn btn-sm" type="button" data-action="repeat" title="Repetir o trecho atual">↻ Repetir trecho</button>
@@ -8,6 +8,7 @@
   <button class="btn btn-sm btn-icon" type="button" data-action="stop" title="Parar" aria-label="Parar">■</button>
   <label class="rate">Velocidade <input type="range" min="0.5" max="1.5" step="0.05" value="1" data-rate aria-valuetext="1,00×"> <span data-rate-label aria-hidden="true">1.00×</span></label>
   <div class="player-status" data-status aria-live="polite"></div>
+  {% if player_treated_audio %}<small class="muted">Áudio tratado do vídeo (menos ruído e música). Trechos sem áudio tratado avisam aqui antes de usar a voz sintetizada.</small>{% endif %}
 </div>
 {{ chunk_texts|json_script:"chunk-texts" }}
 {{ chunk_audio_urls|json_script:"chunk-audio-urls" }}

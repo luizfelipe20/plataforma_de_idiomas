@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.ai import AIServiceError
+from apps.core.http import ranged_file_response
 from apps.core.languages import SUPPORTED_LANGUAGES
 from apps.library.models import Text
 from apps.library.services import tts
@@ -92,8 +93,16 @@ def quiz_new(request, text_pk):
 def question_audio(request, pk):
     """MP3 do trecho de uma pergunta de compreensão auditiva (somente para o dono do texto)."""
     question = get_object_or_404(
-        Question.objects.select_related("quiz__text"), pk=pk, quiz__text__owner=request.user
+        Question.objects.select_related("quiz__text__source_media"), pk=pk, quiz__text__owner=request.user
     )
+    if question.audio_clip or question.has_real_audio:
+        from apps.videos.services import question_clip
+
+        path = question_clip(question)
+        if path:
+            return ranged_file_response(request, path, content_type="audio/mpeg", max_age=86400)
+        # Trecho do vídeo sem áudio tratado: não troca em silêncio pelo original nem por TTS.
+        return JsonResponse({"error": "O áudio tratado deste trecho do vídeo não está disponível."}, status=404)
     try:
         path = tts.get_audio(question.passage, question.quiz.text.source_language)
     except tts.TTSError as exc:
@@ -170,7 +179,7 @@ def attempt_take(request, pk):
         messages.info(request, "Esta tentativa foi abandonada. Inicie uma nova.")
         return redirect(attempt.quiz)
 
-    questions = list(attempt.quiz.questions.prefetch_related("options"))
+    questions = list(attempt.quiz.questions.select_related("quiz__text__source_media").prefetch_related("options"))
     chunks = list(attempt.text.chunks.all())
     selections, error = {}, None
     if request.method == "POST":

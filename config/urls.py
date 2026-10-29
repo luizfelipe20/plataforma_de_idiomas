@@ -8,5 +8,6 @@ urlpatterns = [
     path("quizzes/", include("apps.quizzes.urls")),
     path("tempo/", include("apps.tracking.urls")),
     path("vocabulario/", include("apps.vocabulary.urls")),
+    path("videos/", include("apps.videos.urls")),
     path("", include("apps.dashboard.urls")),
 ]

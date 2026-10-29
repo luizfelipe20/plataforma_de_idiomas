@@ -1,0 +1,12 @@
+{% comment %}Situação de um vídeo; o videos.js atualiza este bloco enquanto há processamento.{% endcomment %}
+<div data-media-status>
+  <span class="badge {% if media.status == 'ready' %}badge-good{% elif media.status == 'failed' %}badge-bad{% elif media.status == 'uploading' %}{% else %}badge-mid{% endif %}" data-status-label>{{ media.get_status_display }}</span>
+  {% if media.status == "uploading" %}
+  <div class="cell-sub muted" data-status-detail>{{ media.upload_percent }}% enviado</div>
+  {% elif media.is_busy %}
+  <div class="meter-row cell-sub"><div class="meter" role="progressbar" aria-label="Progresso do processamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ media.progress }}"><span data-status-bar style="width:{{ media.progress }}%"></span></div><small data-status-percent>{{ media.progress }}%</small></div>
+  <div class="cell-sub muted" data-status-detail>{{ media.current_step_label }}</div>
+  {% elif media.status == "failed" %}
+  <div class="cell-sub score-bad" data-status-detail>{{ media.error_message|truncatechars:120 }}</div>
+  {% endif %}
+</div>

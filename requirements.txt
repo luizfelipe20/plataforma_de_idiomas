@@ -5,3 +5,5 @@ dj-database-url>=2.2
 whitenoise>=6.7
 gTTS>=2.5
 psycopg[binary]>=3.2
+# Transcrição local (Whisper em CPU) do módulo de vídeos
+faster-whisper>=1.2,<2

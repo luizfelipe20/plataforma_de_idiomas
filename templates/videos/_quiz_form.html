@@ -1,0 +1,38 @@
+{% comment %}Formulário de quiz a partir de uma fonte do vídeo. Usa `segment_index` (segmento) ou mostra a escolha da fonte.{% endcomment %}
+<form method="post" action="{% url 'videos:media_quiz_create' media.pk %}" class="form-grid">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  {% if segment_index is not None %}
+  <input type="hidden" name="source" value="segment:{{ segment_index }}">
+  {% else %}
+  <fieldset class="field field-full">
+    <legend>Fonte</legend>
+    <div class="checkbox-list">
+      <label class="chip-check"><input type="radio" name="source" value="all" checked> Vídeo completo</label>
+      <label class="chip-check"><input type="radio" name="source" value="range" data-range-toggle> Intervalo de falas</label>
+    </div>
+    <div class="inline-form stack-top">
+      <div class="field"><label for="range-start">Início</label><input type="text" id="range-start" name="range_start" placeholder="ex.: 12:30" inputmode="numeric"></div>
+      <div class="field"><label for="range-end">Fim</label><input type="text" id="range-end" name="range_end" placeholder="ex.: 18:00" inputmode="numeric"></div>
+    </div>
+    <small>Para um segmento específico, abra o segmento na lista acima.</small>
+  </fieldset>
+  {% endif %}
+  <fieldset class="field field-full">
+    <legend>Tipo de quiz</legend>
+    <div class="checkbox-list">
+      {% for key, preset in quiz_presets.items %}
+      <label class="chip-check" title="{{ preset.1 }}"><input type="radio" name="preset" value="{{ key }}" {% if key == "mixed" %}checked{% endif %}> {{ preset.0 }}</label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="field field-full">
+    <label for="quiz-title-{{ segment_index|default:'all' }}">Título (opcional)</label>
+    <input type="text" id="quiz-title-{{ segment_index|default:'all' }}" name="title" maxlength="120">
+  </div>
+  <div class="form-actions field-full">
+    <button class="btn btn-primary" type="submit" data-loading-text="Gerando quiz…">Gerar quiz</button>
+    <button class="btn" type="submit" name="custom" value="1">Escolher tipos e quantidades</button>
+  </div>
+  <p class="muted note field-full">O quiz fica pronto para responder assim que é gerado. As perguntas de compreensão auditiva tocam o trecho real do áudio tratado.</p>
+</form>

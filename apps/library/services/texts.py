@@ -1,6 +1,7 @@
 """Regras de negócio de textos: trechos, tags e tradução."""
 import logging
 
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
@@ -43,16 +44,25 @@ def sync_chunks(text):
     Traduções de trechos idênticos (mesmo conteúdo e mesmo idioma de destino)
     são reaproveitadas, evitando novas chamadas à IA.
     """
+    old_chunks = list(text.chunks.all())
     reusable = {
         (c.content_hash, c.translation_language): (c.translation, c.translation_provider)
-        for c in text.chunks.all()
+        for c in old_chunks
         if c.translation and c.translation_source_hash == c.content_hash
     }
+    # Trechos de vídeo com o mesmo conteúdo mantêm o intervalo e o recorte de áudio tratado
+    # (a n-ésima ocorrência de um conteúdo herda da n-ésima, para frases repetidas).
+    reusable_audio = {}
+    for c in old_chunks:
+        if c.has_real_audio:
+            reusable_audio.setdefault(c.content_hash, []).append((c.audio_start, c.audio_end, c.audio_clip.name))
     text.chunks.all().delete()
     chunks = []
     for order, piece in enumerate(split_text(text.content)):
         digest = content_hash(piece)
         cached, cached_provider = reusable.get((digest, text.target_language), ("", ""))
+        same_content = reusable_audio.get(digest)
+        audio_start, audio_end, audio_clip = same_content.pop(0) if same_content else (None, None, "")
         chunks.append(
             TextChunk(
                 text=text,
@@ -63,9 +73,15 @@ def sync_chunks(text):
                 translation_language=text.target_language if cached else "",
                 translation_source_hash=digest if cached else "",
                 translation_provider=cached_provider,
+                audio_start=audio_start,
+                audio_end=audio_end,
+                audio_clip=audio_clip,
             )
         )
     TextChunk.objects.bulk_create(chunks)
+    kept = {c.audio_clip.name for c in chunks if c.audio_clip}
+    for name in {c.audio_clip.name for c in old_chunks if c.audio_clip} - kept:
+        default_storage.delete(name)
     return chunks
 
 

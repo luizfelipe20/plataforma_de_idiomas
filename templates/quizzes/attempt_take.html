@@ -52,15 +52,29 @@
         <span class="question-text">{{ forloop.counter }}. {{ question.prompt }}</span>
       </legend>
       {% if question.kind == "listening" and question.passage %}
+      {% with status=question.audio_status %}
       <div class="question-audio">
+        {% if status == "treated" %}
+        <audio controls preload="none" src="{% url 'quizzes:question_audio' question.pk %}" data-question-audio data-treated-audio>
+          Seu navegador não reproduz áudio.
+        </audio>
+        <small class="muted">Áudio tratado do vídeo (menos ruído e música).</small>
+        <div class="message error hidden" data-audio-error role="status">Não foi possível carregar o áudio tratado deste trecho. O áudio original não é usado no lugar.</div>
+        <button class="btn btn-sm hidden" type="button" data-speak="{{ question.speak_id }}" data-locale="{{ text.source_language|tts_locale }}">🔊 Ouvir por voz sintetizada</button>
+        {% elif status == "unavailable" %}
+        <div class="message error" role="status">O áudio tratado deste trecho do vídeo não está disponível. O áudio original, com ruído, não é usado no lugar.</div>
+        <button class="btn btn-sm" type="button" data-speak="{{ question.speak_id }}" data-locale="{{ text.source_language|tts_locale }}">🔊 Ouvir por voz sintetizada</button>
+        {% else %}
         {% if server_tts %}
         <audio controls preload="none" src="{% url 'quizzes:question_audio' question.pk %}" data-question-audio>
           Seu navegador não reproduz áudio.
         </audio>
         {% endif %}
         <button class="btn btn-sm{% if server_tts %} hidden{% endif %}" type="button" data-speak="{{ question.speak_id }}" data-locale="{{ text.source_language|tts_locale }}">🔊 Ouvir o trecho</button>
+        {% endif %}
         {{ question.passage|json_script:question.speak_id }}
       </div>
+      {% endwith %}
       {% endif %}
       {% for option in question.options.all %}
       <label class="option">

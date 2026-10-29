@@ -58,6 +58,25 @@ services:
     command: >
       sh -c "while true; do python manage.py close_stale_sessions; sleep $${CLEANUP_INTERVAL_SECONDS:-300}; done"
 
+  # Processa a fila de vídeos (FFmpeg + Whisper). Um vídeo por vez, sem bloquear o web.
+  worker:
+    <<: *app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lingualab}:${POSTGRES_PASSWORD:-lingualab}@db:5432/${POSTGRES_DB:-lingualab}
+      MEDIA_ROOT: /app/media
+      RUN_MIGRATIONS: "0"
+      WHISPER_MODEL_DIR: /app/models/whisper
+    volumes:
+      - media:/app/media
+      - whisper_models:/app/models/whisper
+    depends_on:
+      web:
+        condition: service_healthy
+    # Tempo para devolver a etapa em andamento à fila ao parar o container.
+    stop_grace_period: 30s
+    command: python manage.py process_media
+
 volumes:
   pgdata:
   media:
+  whisper_models:

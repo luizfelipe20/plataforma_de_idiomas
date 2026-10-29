@@ -186,6 +186,19 @@ def _redistribute(needed, kind, plan, blocked):
     return moved, targets
 
 
+def _audio_source(text, gq):
+    """Trecho real do áudio (vídeo de origem) de uma pergunta de compreensão auditiva."""
+    if gq.kind != LISTENING or not text.source_media_id:
+        return {}
+    from apps.videos.services import locate_passage
+
+    found = locate_passage(text, gq.passage)
+    if not found:
+        return {}
+    start, end, segment = found
+    return {"audio_start": start, "audio_end": end, "media_segment": segment}
+
+
 def generate_quiz(text, *, plan=None, language=None, title="", provider=None, max_rounds=None):
     """
     Gera e persiste um novo quiz independente para `text`.
@@ -195,6 +208,8 @@ def generate_quiz(text, *, plan=None, language=None, title="", provider=None, ma
     seguintes, pedindo à IA só as que faltam. Tipos que o texto não comporta
     são substituídos por outros tipos selecionados, com aviso nas observações.
     Quizzes anteriores e seus resultados nunca são alterados.
+    Em textos vindos de vídeo, as perguntas de compreensão auditiva apontam para o trecho
+    real do áudio tratado.
     Levanta `AIServiceError` ou `QuizValidationError` em caso de falha.
     """
     provider = provider or get_provider()
@@ -288,7 +303,7 @@ def generate_quiz(text, *, plan=None, language=None, title="", provider=None, ma
                 for position, gq in enumerate(accepted):
                     question = Question.objects.create(
                         quiz=quiz, order=position, kind=gq.kind, prompt=gq.prompt,
-                        passage=gq.passage, explanation=gq.explanation,
+                        passage=gq.passage, explanation=gq.explanation, **_audio_source(text, gq),
                     )
                     # Embaralha para a resposta correta não ficar sempre na mesma posição.
                     options = [(opt, i == gq.correct_index) for i, opt in enumerate(gq.options)]
@@ -297,7 +312,16 @@ def generate_quiz(text, *, plan=None, language=None, title="", provider=None, ma
                         Option(question=question, order=i, text=opt[:500], is_correct=correct)
                         for i, (opt, correct) in enumerate(options)
                     )
-                return quiz
+            if text.source_media_id:
+                from apps.videos.services import attach_quiz_clips
+
+                missing = attach_quiz_clips(quiz)
+                if missing:
+                    notes.append(f"{missing} pergunta(s) de compreensão auditiva sem o áudio tratado do vídeo: "
+                                 "elas avisam a falta e não usam o áudio original.")
+                    quiz.generation_notes = " ".join(notes)[:500]
+                    quiz.save(update_fields=["generation_notes"])
+            return quiz
         except IntegrityError:
             continue
     raise AIServiceError("Não foi possível salvar o quiz. Tente novamente.", retryable=True)

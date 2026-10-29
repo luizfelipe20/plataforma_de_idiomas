@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.urls import reverse
 
 from apps.core.languages import LANGUAGE_CHOICES
@@ -61,6 +63,11 @@ class Quiz(models.Model):
         return reverse("quizzes:quiz_detail", args=[self.pk])
 
 
+def _question_audio_path(question, filename):
+    # Fora da pasta do vídeo: o áudio do quiz continua existindo se o vídeo for excluído.
+    return f"quiz-audio/{question.quiz.text.owner_id}/{question.quiz_id}/{filename}"
+
+
 class Question(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="questions")
     order = models.PositiveSmallIntegerField()
@@ -70,6 +77,15 @@ class Question(models.Model):
     # pergunta para que o áudio não mude se o texto for editado depois.
     passage = models.TextField("trecho em áudio", blank=True)
     explanation = models.TextField("explicação", blank=True)
+    # Texto vindo de vídeo: intervalo (s, no vídeo original) do áudio real do trecho e o
+    # segmento correspondente. Sem eles, o áudio da pergunta é gerado por TTS.
+    audio_start = models.FloatField(null=True, blank=True)
+    audio_end = models.FloatField(null=True, blank=True)
+    media_segment = models.ForeignKey(
+        "videos.MediaSegment", on_delete=models.SET_NULL, null=True, blank=True, related_name="questions"
+    )
+    # Recorte do áudio tratado (menos ruído e música) usado na pergunta, guardado no quiz.
+    audio_clip = models.FileField(upload_to=_question_audio_path, max_length=255, blank=True)
 
     class Meta:
         ordering = ["order"]
@@ -78,6 +94,26 @@ class Question(models.Model):
     @property
     def kind_info(self):
         return KINDS.get(self.kind)
+
+    @property
+    def has_real_audio(self):
+        return self.audio_start is not None and self.audio_end is not None
+
+    # Origem do áudio de uma pergunta de compreensão auditiva.
+    AUDIO_TREATED = "treated"  # recorte do áudio tratado do vídeo (guardado ou recortável)
+    AUDIO_UNAVAILABLE = "unavailable"  # trecho veio do vídeo, mas o áudio tratado sumiu
+    AUDIO_SYNTH = "synth"  # trecho fora do vídeo: voz sintetizada
+
+    @property
+    def audio_status(self):
+        if self.audio_clip and self.audio_clip.storage.exists(self.audio_clip.name):
+            return self.AUDIO_TREATED
+        if not self.has_real_audio:
+            return self.AUDIO_SYNTH
+        media = self.quiz.text.source_media
+        if media is not None and media.audio_clean and media.audio_clean.storage.exists(media.audio_clean.name):
+            return self.AUDIO_TREATED
+        return self.AUDIO_UNAVAILABLE
 
     @property
     def speak_id(self):
@@ -173,3 +209,10 @@ class AttemptAnswer(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["attempt", "question"], name="unique_answer_per_question")
         ]
+
+
+@receiver(post_delete, sender=Question)
+def _delete_audio_clip(sender, instance, **kwargs):
+    """Apaga o recorte de áudio quando a pergunta some (revisão, exclusão do quiz ou do texto)."""
+    if instance.audio_clip:
+        instance.audio_clip.delete(save=False)

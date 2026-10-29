@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}Segmento {{ segment.number }} · {{ media.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'videos:media_list' %}">Vídeos</a> / <a href="{{ media.get_absolute_url }}">{{ media.title }}</a> / Segmento {{ segment.number }}</div>
+    <h1>Segmento {{ segment.number }}</h1>
+    <div class="btn-group">
+      <span class="badge">{{ segment.start_seconds|duration }} – {{ segment.end_seconds|duration }} no vídeo</span>
+      <span class="badge {% if segment.transcript_status == 'done' %}badge-good{% elif segment.transcript_status == 'failed' %}badge-bad{% endif %}">{{ segment.get_transcript_status_display }}</span>
+      <span class="badge">{{ cues|length }} fala{{ cues|length|pluralize }}</span>
+      {% if edited_count %}<span class="badge badge-mid">{{ edited_count }} revisada{{ edited_count|pluralize }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="btn-group">
+    {% if previous_index is not None %}<a class="btn" href="{% url 'videos:segment_detail' media.pk previous_index %}">← Anterior</a>{% endif %}
+    {% if next_index is not None %}<a class="btn" href="{% url 'videos:segment_detail' media.pk next_index %}">Próximo →</a>{% endif %}
+  </div>
+</div>
+
+<div class="quiz-layout">
+  <section class="card">
+    <div class="card-header">
+      <h2>Legendas</h2>
+      {% if cues %}
+      <div class="btn-group">
+        {% if editing %}<a class="btn btn-sm" href="{{ segment.get_absolute_url }}">Cancelar revisão</a>{% else %}<a class="btn btn-sm btn-primary" href="?revisar=1">Revisar transcrição</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% if segment.transcript_status == "failed" %}<div class="message error">Falha na transcrição: {{ segment.transcript_error }}</div>{% endif %}
+
+    {% if editing %}
+    <form method="post" action="{% url 'videos:segment_review' media.pk segment.index %}">
+      {% csrf_token %}
+      <ol class="cue-list cue-edit">
+        {% for cue in cues %}
+        <li data-cue="{{ cue.pk }}">
+          <button type="button" class="cue-time" data-seek="{{ forloop.counter0 }}" title="Ouvir esta fala">{{ cue.start_seconds|duration }}</button>
+          <div class="field">
+            <label class="sr-only" for="cue-{{ cue.pk }}">Fala {{ forloop.counter }}</label>
+            <textarea id="cue-{{ cue.pk }}" name="cue-{{ cue.pk }}" rows="2" lang="{{ media.language }}">{{ cue.text }}</textarea>
+            {% if cue.edited %}<small>Reconhecido: “{{ cue.original_text }}”</small>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Salvar revisão</button>
+        {% if edited_count %}<button class="btn" type="submit" name="action" value="restore" data-confirm="Desfazer todas as edições deste segmento?" formnovalidate>Desfazer edições</button>{% endif %}
+      </div>
+      <p class="muted note">Uma fala apagada volta ao texto reconhecido. Os tempos não mudam.</p>
+    </form>
+    {% else %}
+    <ol class="cue-list" data-cue-list lang="{{ media.language }}">
+      {% for cue in cues %}
+      <li data-cue="{{ cue.pk }}"><button type="button" class="cue-line" data-seek="{{ forloop.counter0 }}"><span class="cue-time">{{ cue.start_seconds|duration }}</span><span class="cue-text">{{ cue.text }}</span></button></li>
+      {% empty %}
+      <li class="muted">{% if segment.transcript_status == "pending" %}A transcrição deste segmento ainda não foi feita.{% else %}Nenhuma fala reconhecida neste trecho (pode ser só música ou silêncio).{% endif %}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+  </section>
+
+  <aside class="card">
+    <div class="card-header"><h2>Áudio tratado</h2></div>
+    {% if segment.audio %}
+    <audio controls preload="metadata" src="{% url 'videos:segment_audio' media.pk segment.index %}" class="media-audio" data-segment-audio>
+      <track kind="captions" srclang="{{ media.language }}" label="Legendas" src="{% url 'videos:segment_subtitles' media.pk segment.index 'vtt' %}" default>
+    </audio>
+    <p class="muted note">Clique numa fala para ouvi-la; a fala em reprodução fica destacada.</p>
+    <div class="btn-group">
+      <a class="btn btn-sm" href="{% url 'videos:segment_audio' media.pk segment.index %}?baixar=1">MP3</a>
+      <a class="btn btn-sm" href="{% url 'videos:segment_subtitles' media.pk segment.index 'vtt' %}">VTT</a>
+      <a class="btn btn-sm" href="{% url 'videos:segment_subtitles' media.pk segment.index 'srt' %}">SRT</a>
+      <a class="btn btn-sm" href="{% url 'videos:segment_subtitles' media.pk segment.index 'json' %}">JSON</a>
+    </div>
+    {% endif %}
+    {% if media.status == "ready" and cues %}
+    <h3 class="stack-top">Criar quiz deste segmento</h3>
+    {% include "videos/_quiz_form.html" with segment_index=segment.index %}
+    {% endif %}
+    {% if not media.is_busy %}
+    <form method="post" action="{% url 'videos:segment_retranscribe' media.pk segment.index %}" class="stack-top"{% if edited_count %} data-confirm="A nova transcrição substitui as {{ edited_count }} fala(s) revisada(s). Continuar?"{% endif %}>
+      {% csrf_token %}
+      <button class="btn btn-sm btn-ghost" type="submit">Transcrever de novo</button>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+{{ cue_data|json_script:"cue-data" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/videos.js' %}"></script>{% endblock %}

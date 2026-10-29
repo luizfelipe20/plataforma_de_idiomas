@@ -1,0 +1,24 @@
+<section class="card stack-top" id="criar-quiz">
+  <div class="card-header"><h2>Criar quiz</h2></div>
+  <div class="grid grid-2">
+    <div>{% include "videos/_quiz_form.html" with segment_index=None %}</div>
+    <div>
+      <h3>Textos e quizzes deste vídeo</h3>
+      <ul class="plain-list">
+        {% for text in media_texts %}
+        <li>
+          <a href="{{ text.get_absolute_url }}"><strong>{{ text.title }}</strong></a>
+          <div class="btn-group cell-sub">
+            {% for quiz in text.quizzes.all %}
+            <a class="badge badge-good" href="{{ quiz.get_absolute_url }}">{{ quiz.label }}</a>
+            {% empty %}<small class="muted">Sem quizzes.</small>
+            {% endfor %}
+          </div>
+        </li>
+        {% empty %}
+        <li class="muted">Nenhum quiz criado a partir deste vídeo ainda.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>

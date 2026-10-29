@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+{% block title %}{{ media.title }} · Vídeos{% endblock %}
+{% block content %}
+<div class="page-header" data-media-row="{{ media.pk }}" {% if media.is_busy %}data-media-watch data-status-url="{{ status_url }}"{% endif %}>
+  <div>
+    <div class="breadcrumbs"><a href="{% url 'videos:media_list' %}">Vídeos</a> / {{ media.title }}</div>
+    <h1>{{ media.title }}</h1>
+    <div class="btn-group">
+      <span class="badge">{{ media.language|lang_name }} → {{ media.target_language|lang_name }}</span>
+      {% if media.duration_seconds %}<span class="badge">{{ media.duration_seconds|duration }}</span>{% endif %}
+      <span class="badge">{{ media.size_bytes|filesizeformat }}</span>
+      <span class="badge">{{ segments|length }} segmento{{ segments|length|pluralize }}</span>
+      <span class="badge">{{ cue_count }} fala{{ cue_count|pluralize }}</span>
+    </div>
+    <p class="muted">{{ media.original_filename }} · enviado em {{ media.created_at|date:"d/m/Y H:i" }}{% if media.processed_at %} · processado em {{ media.processed_at|date:"d/m/Y H:i" }}{% endif %}</p>
+  </div>
+  <div class="btn-group">
+    {% if media.status == "ready" %}<a class="btn btn-primary" href="#criar-quiz">Criar quiz</a>{% endif %}
+    {% if media.status == "failed" %}
+    <form method="post" action="{% url 'videos:media_retry' media.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Repetir processamento</button></form>
+    {% endif %}
+    <a class="btn btn-danger" href="{% url 'videos:media_delete' media.pk %}">Excluir</a>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-header"><h2>Situação</h2>{% include "videos/_status.html" %}</div>
+  {% if media.status == "uploading" %}
+  <div data-upload data-upload-resume>
+    <p>O envio parou em <strong>{{ media.upload_percent }}%</strong> ({{ media.received_bytes|filesizeformat }} de {{ media.size_bytes|filesizeformat }}). Selecione de novo o arquivo <strong>{{ media.original_filename }}</strong> para continuar de onde parou.</p>
+    <form class="inline-form" data-upload-form novalidate>
+      <div class="field"><label class="sr-only" for="video-file">Arquivo</label><input type="file" id="video-file" name="file" required></div>
+      <button class="btn btn-primary" type="submit" data-upload-submit>Continuar envio</button>
+      <button class="btn hidden" type="button" data-upload-cancel>Pausar envio</button>
+    </form>
+    <div class="upload-progress hidden stack-top" data-upload-progress>
+      <div class="meter-row"><div class="meter" role="progressbar" aria-label="Progresso do envio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ media.upload_percent }}"><span data-upload-bar style="width:{{ media.upload_percent }}%"></span></div><strong data-upload-percent>{{ media.upload_percent }}%</strong></div>
+      <small class="muted" data-upload-detail aria-live="polite"></small>
+    </div>
+    <div class="message error hidden stack-top" data-upload-error role="alert"></div>
+  </div>
+  {{ upload_config|json_script:"upload-config" }}
+  {% elif media.status == "failed" %}
+  <div class="message error">{{ media.error_message }}</div>
+  <p class="muted note">“Repetir processamento” continua da etapa que falhou, sem precisar enviar o vídeo de novo.</p>
+  {% elif media.is_busy %}
+  <p class="muted">O processamento roda no servidor; você pode sair desta página. A situação é atualizada automaticamente.</p>
+  {% endif %}
+
+  {% if steps %}
+  <h3>Histórico do processamento</h3>
+  <div class="table-wrap">
+    <table class="table-stack">
+      <thead><tr><th>Etapa</th><th>Situação</th><th class="num">Tentativas</th><th>Início</th><th class="num">Duração</th><th>Detalhes</th></tr></thead>
+      <tbody>
+      {% for step in steps %}
+        <tr>
+          <td>{{ step.get_name_display }}</td>
+          <td><span class="badge {% if step.status == 'done' %}badge-good{% elif step.status == 'failed' %}badge-bad{% elif step.status == 'running' %}badge-mid{% endif %}">{{ step.get_status_display }}{% if step.status == "running" %} · {{ step.progress }}%{% endif %}</span></td>
+          <td class="num">{{ step.attempts }}</td>
+          <td>{% if step.started_at %}{{ step.started_at|date:"d/m H:i:s" }}{% else %}—{% endif %}</td>
+          <td class="num">{% if step.duration_seconds is not None %}{{ step.duration_seconds|duration }}{% else %}—{% endif %}</td>
+          <td class="muted">{{ step.message|default:"" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+{% if media.audio_clean or media.audio_original %}
+<section class="card stack-top">
+  <div class="card-header"><h2>Áudio completo</h2></div>
+  <div class="grid grid-2">
+    {% if media.audio_clean %}
+    <div>
+      <h3>Tratado <small class="muted">(menos ruído e música)</small></h3>
+      <audio controls preload="none" src="{% url 'videos:media_file' media.pk 'audio-tratado' %}" class="media-audio"></audio>
+      <a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'audio-tratado' %}?baixar=1">Baixar MP3</a>
+    </div>
+    {% endif %}
+    {% if media.audio_original %}
+    <div>
+      <h3>Original <small class="muted">(sem tratamento)</small></h3>
+      <audio controls preload="none" src="{% url 'videos:media_file' media.pk 'audio-original' %}" class="media-audio"></audio>
+      <a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'audio-original' %}?baixar=1">Baixar MP3</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="btn-group stack-top">
+    {% if media.original and media.status != "uploading" %}<a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'original' %}?baixar=1">Baixar vídeo original</a>{% endif %}
+    {% if cue_count %}
+    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'vtt' %}">Legendas (VTT)</a>
+    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'srt' %}">Legendas (SRT)</a>
+    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'json' %}">Transcrição (JSON)</a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if segments %}
+<section class="card stack-top">
+  <div class="card-header"><h2>Segmentos</h2><small class="muted">Até 5 minutos cada, com tempos do vídeo original.</small></div>
+  <div class="table-wrap">
+    <table class="table-stack table-stack-wide">
+      <thead><tr><th>Segmento</th><th>Intervalo</th><th>Transcrição</th><th class="num">Falas</th><th>Ouvir</th><th><span class="sr-only">Ações</span></th></tr></thead>
+      <tbody>
+      {% for segment in segments %}
+        <tr>
+          <td class="cell-title"><a href="{{ segment.get_absolute_url }}"><strong>Segmento {{ segment.number }}</strong></a></td>
+          <td>{{ segment.start_seconds|duration }} – {{ segment.end_seconds|duration }}</td>
+          <td><span class="badge {% if segment.transcript_status == 'done' %}badge-good{% elif segment.transcript_status == 'failed' %}badge-bad{% endif %}">{{ segment.get_transcript_status_display }}</span></td>
+          <td class="num">{{ segment.cue_count }}</td>
+          <td>{% if segment.audio %}<audio controls preload="none" src="{% url 'videos:segment_audio' media.pk segment.index %}" class="media-audio media-audio-sm"></audio>{% endif %}</td>
+          <td class="cell-actions"><div class="btn-group btn-group-end"><a class="btn btn-sm" href="{{ segment.get_absolute_url }}">Legendas</a>{% if segment.audio %}<a class="btn btn-sm" href="{% url 'videos:segment_audio' media.pk segment.index %}?baixar=1">MP3</a>{% endif %}</div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if media.status == "ready" %}
+{% include "videos/_quiz_sources.html" %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/videos.js' %}"></script>{% endblock %}
