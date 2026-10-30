@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -127,11 +128,24 @@ def encode_mp3(wav_in, mp3_out, *, start=None, length=None, duration=None, on_pr
 
 def cut_clip(audio_in, mp3_out, start, end):
     """
-    Recorte curto (perguntas de compreensão auditiva) a partir do MP3 já tratado.
-    Copia os quadros MP3 sem reconverter: mesma qualidade do áudio tratado e sem novo
-    processamento (a precisão de ~26 ms por quadro fica coberta pela folga do recorte).
+    Recorte de [start, end] (s) de um MP3 já tratado, ou da lista de MP3s consecutivos
+    (segmentos) tocados em sequência. Copia os quadros MP3 sem reconverter: mesma qualidade
+    do áudio tratado e sem novo processamento (a precisão de ~26 ms por quadro fica coberta
+    pela folga do recorte).
     """
+    paths = [audio_in] if isinstance(audio_in, str) else list(audio_in)
+    listing = None
+    if len(paths) == 1:
+        source = ["-i", paths[0]]
+    else:
+        fd, listing = tempfile.mkstemp(suffix=".txt", dir=os.path.dirname(mp3_out))
+        with os.fdopen(fd, "w") as fh:
+            fh.writelines("file '{}'\n".format(p.replace("'", "'\\''")) for p in paths)
+        source = ["-f", "concat", "-safe", "0", "-i", listing]
     start = max(0.0, start)
-    # Com -ss antes de -i, os tempos de saída recomeçam em zero: a duração vai em -t.
-    run(["-ss", f"{start:.3f}", "-t", f"{max(0.1, end - start):.3f}", "-i", audio_in,
-         "-map", "0:a:0", "-c:a", "copy", mp3_out])
+    try:
+        run([*source, "-ss", f"{start:.3f}", "-t", f"{max(0.1, end - start):.3f}",
+             "-map", "0:a:0", "-c:a", "copy", mp3_out])
+    finally:
+        if listing:
+            os.remove(listing)

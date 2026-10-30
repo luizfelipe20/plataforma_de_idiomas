@@ -111,7 +111,7 @@ class Question(models.Model):
         if not self.has_real_audio:
             return self.AUDIO_SYNTH
         media = self.quiz.text.source_media
-        if media is not None and media.audio_clean and media.audio_clean.storage.exists(media.audio_clean.name):
+        if media is not None and media.has_treated_audio:
             return self.AUDIO_TREATED
         return self.AUDIO_UNAVAILABLE
 

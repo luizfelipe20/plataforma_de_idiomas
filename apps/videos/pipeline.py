@@ -174,7 +174,15 @@ def process(media):
         status=MediaSource.Status.READY, current_step="", progress=100, processed_at=timezone.now(), error_message=""
     )
     _cleanup_work(media)
+    discard_original(media)
     return True
+
+
+def discard_original(media):
+    """Apaga o vídeo enviado: depois de pronto, só os segmentos (áudio tratado) são mantidos."""
+    if media.original:
+        media.original.delete(save=False)
+        MediaSource.objects.filter(pk=media.pk).update(original="")
 
 
 def _fail(media, step, message):
@@ -235,20 +243,12 @@ def _ensure_clean(media, on_progress=None):
     return wav
 
 
-def _store_audio(media, field, filename, wav, on_progress):
-    name = f"{media_dir(media)}/{filename}"
-    ffmpeg.encode_mp3(wav, local_path(name), duration=media.duration_seconds, on_progress=on_progress)
-    MediaSource.objects.filter(pk=media.pk).update(**{field: name})
-
-
 def step_extract(media, progress):
-    wav = _ensure_extracted(media, progress.part(0, 0.6))
-    _store_audio(media, "audio_original", "audio-original.mp3", wav, progress.part(0.6, 1))
+    _ensure_extracted(media, progress)
 
 
 def step_clean(media, progress):
-    wav = _ensure_clean(media, progress.part(0, 0.7))
-    _store_audio(media, "audio_clean", "audio-tratado.mp3", wav, progress.part(0.7, 1))
+    _ensure_clean(media, progress)
     return "RNNoise + redução FFT + normalização" if ffmpeg.rnnoise_available() else "redução FFT + normalização (sem RNNoise)"
 
 

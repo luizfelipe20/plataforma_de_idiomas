@@ -12,7 +12,6 @@ urlpatterns = [
     path("<int:pk>/bloco/", views.upload_chunk, name="upload_chunk"),
     path("<int:pk>/repetir/", views.media_retry, name="media_retry"),
     path("<int:pk>/excluir/", views.media_delete, name="media_delete"),
-    path("<int:pk>/arquivos/<slug:kind>/", views.media_file, name="media_file"),
     path("<int:pk>/legendas.<str:fmt>", views.media_subtitles, name="media_subtitles"),
     path("<int:pk>/quiz/", views.media_quiz_create, name="media_quiz_create"),
     path("<int:pk>/segmentos/<int:index>/", views.segment_detail, name="segment_detail"),

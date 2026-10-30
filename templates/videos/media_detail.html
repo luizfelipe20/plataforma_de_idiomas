@@ -16,7 +16,6 @@
     <p class="muted">{{ media.original_filename }} · enviado em {{ media.created_at|date:"d/m/Y H:i" }}{% if media.processed_at %} · processado em {{ media.processed_at|date:"d/m/Y H:i" }}{% endif %}</p>
   </div>
   <div class="btn-group">
-    {% if media.status == "ready" %}<a class="btn btn-primary" href="#criar-quiz">Criar quiz</a>{% endif %}
     {% if media.status == "failed" %}
     <form method="post" action="{% url 'videos:media_retry' media.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Repetir processamento</button></form>
     {% endif %}
@@ -70,36 +69,6 @@
   {% endif %}
 </section>
 
-{% if media.audio_clean or media.audio_original %}
-<section class="card stack-top">
-  <div class="card-header"><h2>Áudio completo</h2></div>
-  <div class="grid grid-2">
-    {% if media.audio_clean %}
-    <div>
-      <h3>Tratado <small class="muted">(menos ruído e música)</small></h3>
-      <audio controls preload="none" src="{% url 'videos:media_file' media.pk 'audio-tratado' %}" class="media-audio"></audio>
-      <a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'audio-tratado' %}?baixar=1">Baixar MP3</a>
-    </div>
-    {% endif %}
-    {% if media.audio_original %}
-    <div>
-      <h3>Original <small class="muted">(sem tratamento)</small></h3>
-      <audio controls preload="none" src="{% url 'videos:media_file' media.pk 'audio-original' %}" class="media-audio"></audio>
-      <a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'audio-original' %}?baixar=1">Baixar MP3</a>
-    </div>
-    {% endif %}
-  </div>
-  <div class="btn-group stack-top">
-    {% if media.original and media.status != "uploading" %}<a class="btn btn-sm" href="{% url 'videos:media_file' media.pk 'original' %}?baixar=1">Baixar vídeo original</a>{% endif %}
-    {% if cue_count %}
-    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'vtt' %}">Legendas (VTT)</a>
-    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'srt' %}">Legendas (SRT)</a>
-    <a class="btn btn-sm" href="{% url 'videos:media_subtitles' media.pk 'json' %}">Transcrição (JSON)</a>
-    {% endif %}
-  </div>
-</section>
-{% endif %}
-
 {% if segments %}
 <section class="card stack-top">
   <div class="card-header"><h2>Segmentos</h2><small class="muted">Até 5 minutos cada, com tempos do vídeo original.</small></div>
@@ -114,7 +83,7 @@
           <td><span class="badge {% if segment.transcript_status == 'done' %}badge-good{% elif segment.transcript_status == 'failed' %}badge-bad{% endif %}">{{ segment.get_transcript_status_display }}</span></td>
           <td class="num">{{ segment.cue_count }}</td>
           <td>{% if segment.audio %}<audio controls preload="none" src="{% url 'videos:segment_audio' media.pk segment.index %}" class="media-audio media-audio-sm"></audio>{% endif %}</td>
-          <td class="cell-actions"><div class="btn-group btn-group-end"><a class="btn btn-sm" href="{{ segment.get_absolute_url }}">Legendas</a>{% if segment.audio %}<a class="btn btn-sm" href="{% url 'videos:segment_audio' media.pk segment.index %}?baixar=1">MP3</a>{% endif %}</div></td>
+          <td class="cell-actions"><a class="btn btn-sm" href="{{ segment.get_absolute_url }}" aria-label="Detalhes do segmento {{ segment.number }}">Detalhes</a></td>
         </tr>
       {% endfor %}
       </tbody>

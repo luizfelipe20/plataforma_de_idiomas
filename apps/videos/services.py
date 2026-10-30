@@ -344,20 +344,26 @@ CLIP_PADDING_SECONDS = 0.25
 
 def _treated_clip(media, start, end, name):
     """
-    Recorta [start, end] (+ folga) do áudio **tratado** de `media` para `name` no storage.
+    Recorta [start, end] (+ folga) do áudio **tratado** de `media` para `name` no storage,
+    a partir dos MP3 dos segmentos (juntando dois quando o trecho cruza a divisa).
     Retorna o caminho, ou None sem áudio tratado: o original, com ruído, nunca é usado.
     """
     import logging
 
     from . import ffmpeg
 
-    if media is None or not media.audio_clean:
+    if media is None:
         return None
+    start, end = max(0.0, start - CLIP_PADDING_SECONDS), end + CLIP_PADDING_SECONDS
+    segments = [s for s in media.segments.order_by("index") if s.end_seconds > start and s.start_seconds < end]
+    sources = [pipeline.local_path(s.audio.name) for s in segments if s.audio]
+    if not segments or len(sources) != len(segments) or not all(os.path.exists(p) for p in sources):
+        return None
+    offset = segments[0].start_seconds
     path = pipeline.local_path(name)
     tmp = f"{path}.part.mp3"
     try:
-        ffmpeg.cut_clip(pipeline.local_path(media.audio_clean.name), tmp,
-                        max(0.0, start - CLIP_PADDING_SECONDS), end + CLIP_PADDING_SECONDS)
+        ffmpeg.cut_clip(sources, tmp, start - offset, end - offset)
         os.replace(tmp, path)
     except (ffmpeg.FFmpegError, OSError):
         logging.getLogger(__name__).warning("Não foi possível recortar %s do áudio tratado", name)

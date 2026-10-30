@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card narrow">
   <h1>Excluir “{{ media.title }}”?</h1>
-  <p>Esta ação apaga o vídeo original, os áudios, os <strong>{{ segment_count }}</strong> segmento{{ segment_count|pluralize }} e as legendas. {% if text_count %}Os <strong>{{ text_count }}</strong> texto{{ text_count|pluralize }} criado{{ text_count|pluralize }} a partir dele continua{{ text_count|pluralize:"m" }} na biblioteca com os quizzes, e as perguntas de compreensão auditiva mantêm o trecho de áudio tratado que já usam.{% endif %}</p>
+  <p>Esta ação apaga os <strong>{{ segment_count }}</strong> segmento{{ segment_count|pluralize }} (áudio tratado) e as legendas. {% if text_count %}Os <strong>{{ text_count }}</strong> texto{{ text_count|pluralize }} criado{{ text_count|pluralize }} a partir dele continua{{ text_count|pluralize:"m" }} na biblioteca com os quizzes, e as perguntas de compreensão auditiva mantêm o trecho de áudio tratado que já usam.{% endif %}</p>
   <form method="post" class="form-actions">
     {% csrf_token %}
     <button class="btn btn-danger" type="submit">Excluir definitivamente</button>

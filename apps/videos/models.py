@@ -17,6 +17,7 @@ def _original_path(media, filename):
 
 
 def _audio_path(media, filename):
+    # Referenciada pela migração inicial (campos de áudio completo, já removidos).
     return f"{media_dir(media)}/{filename}"
 
 
@@ -46,11 +47,9 @@ class MediaSource(models.Model):
     extension = models.CharField(max_length=10)
     size_bytes = models.BigIntegerField("tamanho (bytes)")
     received_bytes = models.BigIntegerField("bytes recebidos", default=0)
+    # Só existe até o processamento terminar: depois ficam apenas os segmentos (áudio tratado).
     original = models.FileField("vídeo original", upload_to=_original_path, max_length=255, blank=True)
     duration_seconds = models.FloatField("duração (s)", null=True, blank=True)
-    # Faixa de áudio extraída sem tratamento: referência para preservar a voz original.
-    audio_original = models.FileField(upload_to=_audio_path, max_length=255, blank=True)
-    audio_clean = models.FileField(upload_to=_audio_path, max_length=255, blank=True)
     status = models.CharField("situação", max_length=12, choices=Status.choices, default=Status.UPLOADING)
     current_step = models.CharField("etapa atual", max_length=20, blank=True)
     progress = models.PositiveSmallIntegerField("progresso (%)", default=0)
@@ -74,6 +73,11 @@ class MediaSource(models.Model):
     @property
     def upload_percent(self):
         return int(100 * self.received_bytes / self.size_bytes) if self.size_bytes else 0
+
+    @property
+    def has_treated_audio(self):
+        """Há áudio tratado (os MP3 dos segmentos) para recortar trechos."""
+        return self.segments.exclude(audio="").exists()
 
     @property
     def is_busy(self):

@@ -1,5 +1,4 @@
 import json
-import os
 
 from django.conf import settings
 from django.contrib import messages
@@ -21,12 +20,6 @@ from . import pipeline, services
 from .forms import UploadForm
 from .models import MediaSegment, MediaSource, ProcessingStep, TranscriptCue
 
-FILE_KINDS = {
-    # kind: (campo, nome para download)
-    "original": ("original", "video"),
-    "audio-original": ("audio_original", "audio-original"),
-    "audio-tratado": ("audio_clean", "audio-tratado"),
-}
 SUBTITLE_TYPES = {"vtt": "text/vtt", "srt": "application/x-subrip", "json": "application/json"}
 
 
@@ -163,7 +156,6 @@ def media_detail(request, pk):
         "videos/media_detail.html",
         {
             "media": media,
-            "quiz_presets": services.QUIZ_PRESETS,
             "media_texts": media.texts.prefetch_related("quizzes").order_by("-created_at"),
             "steps": media.steps.all(),
             "segments": segments,
@@ -215,25 +207,6 @@ def media_delete(request, pk):
 # ---------------------------------------------------------------------------
 # Arquivos e legendas
 # ---------------------------------------------------------------------------
-@login_required
-@require_GET
-def media_file(request, pk, kind):
-    media = _user_media(request, pk)
-    if kind not in FILE_KINDS:
-        raise Http404
-    field_name, label = FILE_KINDS[kind]
-    field = getattr(media, field_name)
-    if not field or (field_name == "original" and media.status == MediaSource.Status.UPLOADING):
-        raise Http404("Arquivo ainda não disponível.")
-    path = pipeline.local_path(field.name)
-    if not os.path.exists(path):
-        raise Http404("Arquivo não encontrado.")
-    ext = os.path.splitext(path)[1]
-    return ranged_file_response(
-        request, path, filename=f"{_base_name(media)}-{label}{ext}", as_attachment=request.GET.get("baixar") == "1"
-    )
-
-
 def _subtitles_response(fmt, cues, offset, filename, data=None):
     if fmt not in SUBTITLE_TYPES:
         raise Http404
@@ -350,7 +323,6 @@ def segment_detail(request, pk, index):
                 for c in cues
             ],
             "editing": request.GET.get("revisar") == "1",
-            "quiz_presets": services.QUIZ_PRESETS,
         },
     )
 

@@ -194,8 +194,13 @@ class PipelineTests(MediaTestCase):
         self.assertEqual(media.progress, 100)
         self.assertAlmostEqual(media.duration_seconds, 7, delta=0.2)
         self.assertTrue(all(s.status == ProcessingStep.Status.DONE and s.attempts == 1 for s in media.steps.all()))
-        for field in (media.audio_original, media.audio_clean):
-            self.assertTrue(os.path.getsize(pipeline.local_path(field.name)) > 0)
+        # Pronto: o vídeo enviado é descartado e ficam só os segmentos (áudio tratado).
+        self.assertFalse(media.original)
+        folder = pipeline.local_path(f"{pipeline.media_dir(media)}/.keep").rsplit("/", 1)[0]
+        kept = [f for _, _, files in os.walk(folder) for f in files if f != ".keep"]
+        self.assertTrue(kept)
+        self.assertTrue(all(f.endswith(".mp3") for f in kept), kept)
+        self.assertEqual(len(kept), media.segments.count())
         segments = list(media.segments.all())
         self.assertEqual([s.number for s in segments], [1, 2, 3])
         self.assertEqual([(s.start_seconds, round(s.end_seconds)) for s in segments], [(0, 3), (3, 6), (6, 7)])
@@ -278,8 +283,6 @@ class MediaViewsTests(MediaTestCase):
         self.assertEqual(partial["Content-Type"], "audio/mpeg")
         download = self.client.get(url, {"baixar": "1"})
         self.assertIn("attachment", download["Content-Disposition"])
-        for kind in ("audio-tratado", "audio-original", "original"):
-            self.assertEqual(self.client.get(reverse("videos:media_file", args=[self.media.pk, kind])).status_code, 200)
 
     def test_subtitles(self):
         vtt = self.client.get(reverse("videos:segment_subtitles", args=[self.media.pk, 1, "vtt"])).content.decode()
@@ -322,13 +325,12 @@ class MediaViewsTests(MediaTestCase):
         self.client.login(username=other.username, password=PASSWORD)
         urls = [self.media.get_absolute_url(), self.segment.get_absolute_url(),
                 reverse("videos:segment_audio", args=[self.media.pk, 1]),
-                reverse("videos:media_file", args=[self.media.pk, "original"]),
                 reverse("videos:media_subtitles", args=[self.media.pk, "json"])]
         for url in urls:
             self.assertEqual(self.client.get(url).status_code, 404, url)
 
     def test_delete_removes_files(self):
-        folder = os.path.dirname(pipeline.local_path(self.media.audio_clean.name))
+        folder = os.path.dirname(os.path.dirname(pipeline.local_path(self.segment.audio.name)))
         self.assertTrue(os.path.isdir(folder))
         self.client.post(reverse("videos:media_delete", args=[self.media.pk]))
         self.assertFalse(MediaSource.objects.exists())
@@ -442,7 +444,7 @@ class QuizAudioClipTests(MediaTestCase):
 
     def remove_treated_audio(self, question):
         question.audio_clip.delete(save=True)
-        MediaSource.objects.filter(pk=self.media.pk).update(audio_clean="")
+        MediaSegment.objects.filter(media=self.media).update(audio="")
         question.refresh_from_db()
 
     def test_clip_copies_treated_audio_without_reencoding(self):
@@ -455,7 +457,9 @@ class QuizAudioClipTests(MediaTestCase):
         with mock.patch.object(ffmpeg, "run", wraps=ffmpeg.run) as run:
             path = services.question_clip(question)
         args = run.call_args.args[0]
-        self.assertEqual(args[args.index("-i") + 1], pipeline.local_path(self.media.audio_clean.name))
+        source = args[args.index("-i") + 1]
+        # Recortado dos MP3 dos segmentos (ou da lista deles, se cruzar a divisa).
+        self.assertTrue("/segments/" in source or "concat" in args, args)
         self.assertEqual(args[args.index("-c:a") + 1], "copy")
         self.assertNotIn("libmp3lame", args)
         # Pedidos seguintes reutilizam o recorte guardado, sem chamar o FFmpeg.
@@ -463,6 +467,14 @@ class QuizAudioClipTests(MediaTestCase):
             self.assertEqual(services.question_clip(question), path)
             self.assertEqual(self.audio_bytes(question), open(path, "rb").read())
         run.assert_not_called()
+
+    def test_clip_across_segments_joins_both(self):
+        from apps.videos import ffmpeg
+
+        # Segmentos de 3 s: o trecho de 2 s a 4 s cruza a divisa entre o 1º e o 2º.
+        path = services._treated_clip(self.media, 2.0, 4.0, f"quiz-audio/teste/divisa.mp3")
+        self.assertAlmostEqual(ffmpeg.probe(path).duration, 2.0 + 2 * services.CLIP_PADDING_SECONDS, delta=0.15)
+        self.assertFalse([f for f in os.listdir(os.path.dirname(path)) if f.endswith(".txt")])
 
     def test_treated_audio_survives_new_attempts(self):
         question = self.questions[0]
@@ -488,7 +500,7 @@ class QuizAudioClipTests(MediaTestCase):
 
     def test_generation_warns_when_treated_audio_is_missing(self):
         self.quiz.delete()  # o texto curto do teste não comporta um segundo quiz sem repetir perguntas
-        MediaSource.objects.filter(pk=self.media.pk).update(audio_clean="")
+        MediaSegment.objects.filter(media=self.media).update(audio="")
         self.client.post(reverse("videos:media_quiz_create", args=[self.media.pk]), {"preset": "listening", "source": "all"})
         quiz = Quiz.objects.get()
         located = quiz.questions.filter(audio_start__isnull=False)
@@ -555,7 +567,7 @@ class TextChunkTreatedAudioTests(MediaTestCase):
     def test_missing_treated_audio_is_reported(self):
         chunk = self.chunks[0]
         chunk.audio_clip.delete(save=True)
-        MediaSource.objects.filter(pk=self.media.pk).update(audio_clean="")
+        MediaSegment.objects.filter(media=self.media).update(audio="")
         resp, _ = self.audio(chunk)
         self.assertEqual(resp.status_code, 404)
         self.assertIn("áudio tratado", resp.json()["error"])
