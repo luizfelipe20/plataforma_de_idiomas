@@ -2,11 +2,15 @@
 {% load static core_tags %}
 {% block title %}{{ quiz.label }} · {{ text.title }}{% endblock %}
 {% block content %}
-<div class="page-header" data-study-activity="quiz" data-study-text="{{ text.pk }}">
+{% include "partials/focus_bar.html" with title=quiz.label|add:" — "|add:text.title %}
+<div class="page-header" data-focus-hide data-study-activity="quiz" data-study-text="{{ text.pk }}">
   <div>
     <div class="breadcrumbs"><a href="{{ text.get_absolute_url }}">{{ text.title }}</a> / <a href="{{ quiz.get_absolute_url }}">{{ quiz.label }}</a> / Tentativa</div>
     <h1>{{ quiz.label }} — {{ text.title }}</h1>
     <p>Modo: <strong>{{ attempt.get_mode_display }}</strong> · {{ questions|length }} perguntas · tempo de estudo <strong data-study-timer>00:00:00</strong></p>
+  </div>
+  <div class="btn-group">
+    <button class="btn" type="button" data-focus-toggle title="Esconde o menu e o que não é essencial para ler, ouvir e responder">Foco</button>
   </div>
 </div>
 

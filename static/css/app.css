@@ -619,3 +619,11 @@ fieldset.question { padding-left: 0; padding-right: 0; }
 .cue-edit li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; align-items: start; }
 .cue-edit .cue-time { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); min-height: var(--tap); padding: 0 .5rem; cursor: pointer; font: inherit; font-size: .8125rem; color: var(--muted); }
 .cue-edit textarea { min-height: 3.2rem; }
+
+/* ---------- Modo foco ---------- */
+.focus-bar { display: none; }
+body.focus-mode .sidebar, body.focus-mode .nav-backdrop, body.focus-mode .topbar, body.focus-mode [data-focus-hide] { display: none !important; }
+body.focus-mode .focus-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; position: sticky; top: 0; z-index: 20; padding: .5rem 0; margin-bottom: .75rem; background: var(--bg); }
+.focus-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: .875rem; }
+body.focus-mode .chunk-original { font-size: 1.125rem; line-height: 1.75; }
+body.focus-mode .reference { top: 3.5rem; max-height: calc(100vh - 4.5rem); max-height: calc(100dvh - 4.5rem); }

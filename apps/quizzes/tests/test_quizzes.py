@@ -448,6 +448,13 @@ class AttemptTests(TestCase):
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, QuizAttempt.Status.ABANDONED)
 
+    def test_attempt_page_offers_focus_mode(self):
+        self.client.force_login(self.user)
+        page = self.client.post(reverse("quizzes:attempt_start", args=[self.quiz.pk]), {"mode": "reading"}, follow=True)
+        self.assertContains(page, "data-focus-toggle", count=2)  # ligar (cabeçalho) e sair (barra)
+        self.assertContains(page, "focus-title")
+        self.assertContains(page, 'class="page-header" data-focus-hide')
+
     def test_full_flow_through_views(self):
         self.client.force_login(self.user)
         response = self.client.post(reverse("quizzes:attempt_start", args=[self.quiz.pk]), {"mode": "audio_only"})

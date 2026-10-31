@@ -2,7 +2,8 @@
 {% load static core_tags %}
 {% block title %}{{ text.title }}{% endblock %}
 {% block content %}
-<div class="page-header">
+{% include "partials/focus_bar.html" with title=text.title %}
+<div class="page-header" data-focus-hide>
   <div>
     <div class="breadcrumbs"><a href="{% url 'library:text_list' %}">Biblioteca</a> / {{ text.title }}</div>
     <h1>{{ text.title }}</h1>
@@ -16,6 +17,7 @@
     <p class="muted">Criado em {{ text.created_at|date:"d/m/Y H:i" }} · Atualizado em {{ text.updated_at|date:"d/m/Y H:i" }}</p>
   </div>
   <div class="btn-group">
+    <button class="btn" type="button" data-focus-toggle title="Esconde o menu e o que não é essencial para ler, ouvir e responder">Foco</button>
     <a class="btn btn-primary" href="{% url 'library:study' text.pk %}">Estudar</a>
     <a class="btn" href="{% url 'library:study' text.pk %}?modo=reading_audio">🔊 Ouvir</a>
     <a class="btn" href="{% url 'dashboard:text_report' text.pk %}">Desempenho</a>
@@ -25,20 +27,20 @@
 </div>
 
 {% if practiced_terms %}
-<div class="message info">Texto de prática dos termos: {% for term in practiced_terms %}<strong>{{ term.term }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}. <a href="{% url 'vocabulary:term_list' %}">Ver lista de termos</a></div>
+<div class="message info" data-focus-hide>Texto de prática dos termos: {% for term in practiced_terms %}<strong>{{ term.term }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}. <a href="{% url 'vocabulary:term_list' %}">Ver lista de termos</a></div>
 {% endif %}
 
 {% if text.status == "error" %}
-<div class="message error message-action">Falha na tradução: {{ text.status_message }}</div>
+<div class="message error message-action" data-focus-hide>Falha na tradução: {{ text.status_message }}</div>
 {% elif text.translation_is_stale %}
-<form class="message warning message-action" method="post" action="{% url 'library:text_translate' text.pk %}">
+<form class="message warning message-action" data-focus-hide method="post" action="{% url 'library:text_translate' text.pk %}">
   {% csrf_token %}
   <span>{% if text.translation_is_simulated %}A tradução atual é <strong>simulada</strong> (feita sem IA).{% else %}Há trechos sem tradução ou com tradução desatualizada.{% endif %}</span>
   <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Traduzindo…">Traduzir com IA agora</button>
 </form>
 {% endif %}
 
-<section class="card" id="quizzes">
+<section class="card" id="quizzes" data-focus-hide>
   <div class="card-header">
     <div>
       <h2>Quizzes</h2>
@@ -58,7 +60,7 @@
 <section class="card">
   <div class="card-header">
     <h2>Áudio</h2>
-    <a class="btn btn-sm" href="{% url 'library:study' text.pk %}?modo=audio_only">Treinar só com áudio</a>
+    <a class="btn btn-sm" data-focus-hide href="{% url 'library:study' text.pk %}?modo=audio_only">Treinar só com áudio</a>
   </div>
   {% include "partials/player.html" %}
 </section>
@@ -67,9 +69,9 @@
   <div class="card-header">
     <div>
       <h2>Texto e tradução</h2>
-      <small>Selecione uma palavra ou frase do texto original para adicioná-la aos termos para reforçar.</small>
+      <small data-focus-hide>Selecione uma palavra ou frase do texto original para adicioná-la aos termos para reforçar.</small>
     </div>
-    <form method="post" action="{% url 'library:text_translate' text.pk %}" class="btn-group">
+    <form method="post" action="{% url 'library:text_translate' text.pk %}" class="btn-group" data-focus-hide>
       {% csrf_token %}
       <button class="btn btn-sm" type="submit" name="force" value="1" data-loading-text="Traduzindo…" data-confirm="Gerar novamente a tradução de todos os trechos?">Refazer tradução</button>
     </form>

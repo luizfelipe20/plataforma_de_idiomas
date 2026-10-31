@@ -134,6 +134,12 @@ class LibraryViewTests(TestCase):
         response = self.client.get(reverse("library:text_list"), params)
         return {t.title for t in response.context["page"]}
 
+    def test_detail_page_offers_focus_mode(self):
+        page = self.client.get(self.a.get_absolute_url())
+        self.assertContains(page, "data-focus-toggle", count=2)  # ligar (cabeçalho) e sair (barra)
+        self.assertContains(page, '<span class="focus-title">Robots</span>', html=True)
+        self.assertContains(page, 'id="quizzes" data-focus-hide')
+
     def test_search_title_and_content(self):
         self.assertEqual(self.titles(q="robots"), {"Robots"})
         self.assertEqual(self.titles(q="meetings"), {"Office"})

@@ -120,6 +120,32 @@
     if (input && !input.closest(".hidden")) input.focus();
   });
 
+  /* Modo foco: esconde menu, cabeçalhos e ações secundárias; a escolha fica neste navegador */
+  const focusButtons = Array.prototype.slice.call(document.querySelectorAll("[data-focus-toggle]"));
+  if (focusButtons.length) {
+    const setFocusMode = function (on, moveFocus) {
+      document.body.classList.toggle("focus-mode", on);
+      try { localStorage.setItem("lingualab-focus", on ? "1" : "0"); } catch (e) { /* armazenamento bloqueado */ }
+      if (!moveFocus) return;
+      const visible = focusButtons.find(function (b) { return b.offsetParent !== null; });
+      if (visible) visible.focus();
+    };
+    let savedFocus = false;
+    try { savedFocus = localStorage.getItem("lingualab-focus") === "1"; } catch (e) { /* armazenamento bloqueado */ }
+    if (savedFocus) setFocusMode(true, false);
+    focusButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setFocusMode(!document.body.classList.contains("focus-mode"), true);
+      });
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape" || !document.body.classList.contains("focus-mode")) return;
+      const popover = document.querySelector("[data-term-popover]");
+      if (popover && !popover.classList.contains("hidden")) return;  // o Esc fecha o popover, não o foco
+      setFocusMode(false, true);
+    });
+  }
+
   /* Mostrar/ocultar o texto de referência durante o quiz */
   document.addEventListener("click", function (ev) {
     const btn = ev.target.closest("[data-toggle-reference]");
