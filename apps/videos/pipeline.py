@@ -3,12 +3,12 @@ Pipeline de processamento de vídeos e fila de tarefas no banco.
 
 Etapas (ProcessingStep), executadas pelo worker `manage.py process_media`:
 
-    probe → extract → clean → segment → transcribe
+    probe → extract → clean → segment → transcribe → gate
 
 Cada etapa registra tentativas, tempos e erro. Uma falha interrompe o vídeo na
 etapa (situação "Falhou"); `retry()` devolve o vídeo à fila e o worker continua da
 etapa que falhou, sem novo upload. Arquivos intermediários (WAV) ficam na pasta
-`work/` do vídeo até a segmentação e são recriados se tiverem sido apagados.
+`work/` do vídeo até o fim do processamento e são recriados se tiverem sido apagados.
 
 Os arquivos são gravados direto no caminho final do armazenamento local
 (`default_storage.path`). Para usar armazenamento de objetos, troque
@@ -17,6 +17,7 @@ Os arquivos são gravados direto no caminho final do armazenamento local
 import logging
 import math
 import os
+import re
 import threading
 import time
 from datetime import timedelta
@@ -32,7 +33,7 @@ from .models import MediaSegment, MediaSource, ProcessingStep, TranscriptCue, me
 logger = logging.getLogger(__name__)
 
 # Peso de cada etapa no progresso geral (a transcrição é a mais demorada).
-STEP_WEIGHTS = {"probe": 1, "extract": 9, "clean": 20, "segment": 10, "transcribe": 60}
+STEP_WEIGHTS = {"probe": 1, "extract": 9, "clean": 20, "segment": 10, "transcribe": 57, "gate": 3}
 # Segmento final menor que isso é incorporado ao anterior.
 MIN_LAST_SEGMENT_SECONDS = 1.0
 # Sinalizado pelo worker ao receber SIGTERM: a etapa interrompida volta para a fila em vez de falhar.
@@ -276,7 +277,6 @@ def step_segment(media, progress):
         ffmpeg.encode_mp3(wav, local_path(name), start=segment.start_seconds, length=segment.duration_seconds)
         MediaSegment.objects.filter(pk=segment.pk).update(audio=name)
         progress((segment.index + 1) / len(segments))
-    _cleanup_work(media)
     return f"{len(segments)} segmento(s) de até {settings.AUDIO_SEGMENT_SECONDS // 60} min"
 
 
@@ -286,6 +286,8 @@ def transcribe_segment(segment, transcriber=None):
     recognized = transcriber.transcribe(local_path(segment.audio.name), segment.media.language)
     cues = []
     for cue in recognized:
+        if is_music_cue(cue.text):
+            continue  # "[Música]", "♪": o Whisper marca trechos sem fala assim
         start = segment.start_seconds + max(0.0, cue.start)
         end = min(segment.end_seconds, segment.start_seconds + max(cue.end, cue.start))
         if cue.text and end > start:
@@ -325,10 +327,71 @@ def step_transcribe(media, progress):
     return f"{total} fala(s) reconhecida(s) com {transcriber.name}"
 
 
+MUSIC_CUE_RE = re.compile(r"\W*(?:(?:music|m[uú]sica|applause|aplausos|laughter|risos)\W*)*", re.IGNORECASE)
+
+
+def is_music_cue(text):
+    """Fala sem palavras (só símbolos ou marcações como "[Music]" e "♪♪")."""
+    return bool(MUSIC_CUE_RE.fullmatch(text.strip()))
+
+
+def speech_intervals(segment):
+    """Intervalos com fala no segmento (s, relativos ao MP3), com folga e pausas curtas unidas."""
+    pad, gap = settings.AUDIO_GATE_PADDING_SECONDS, settings.AUDIO_GATE_MIN_GAP_SECONDS
+    merged = []
+    for cue in segment.cues.order_by("start_seconds"):
+        if is_music_cue(cue.text):
+            continue
+        a = max(0.0, cue.start_seconds - segment.start_seconds - pad)
+        b = min(segment.duration_seconds, cue.end_seconds - segment.start_seconds + pad)
+        if merged and a - merged[-1][1] < gap:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    return [tuple(i) for i in merged]
+
+
+def step_gate(media, progress):
+    """
+    Silencia nos MP3 dos segmentos os trechos sem fala (vinhetas, música de abertura e de
+    transição). A duração não muda, então legendas, recortes e quizzes continuam sincronizados.
+    Usa o WAV tratado quando ainda existe; senão, o próprio MP3 do segmento.
+    """
+    from uuid import uuid4
+
+    from . import services
+
+    if not settings.AUDIO_MUSIC_GATE:
+        return "desativada (AUDIO_MUSIC_GATE)"
+    wav = work_path(media, "clean.wav")
+    use_wav = os.path.exists(wav) and os.path.getsize(wav) > 0
+    pending = [s for s in media.segments.order_by("index") if s.audio and not s.music_gated]
+    muted = 0.0
+    for done, segment in enumerate(pending, start=1):
+        intervals = speech_intervals(segment)
+        old = segment.audio.name
+        # Nome novo: o navegador não reaproveita o áudio antigo do cache.
+        name = f"{media_dir(media)}/segments/{segment.number:03d}-{segment.uid}-{uuid4().hex[:8]}.mp3"
+        tmp = f"{local_path(name)}.part.mp3"
+        if use_wav:
+            ffmpeg.gate_audio(wav, tmp, intervals, start=segment.start_seconds, length=segment.duration_seconds)
+        else:
+            ffmpeg.gate_audio(local_path(old), tmp, intervals)
+        os.replace(tmp, local_path(name))
+        MediaSegment.objects.filter(pk=segment.pk).update(audio=name, music_gated=True)
+        default_storage.delete(old)
+        muted += segment.duration_seconds - sum(b - a for a, b in intervals)
+        progress(done / len(pending))
+    if pending:
+        services.refresh_clips(media)
+    return f"{round(muted)} s sem fala silenciados"
+
+
 STEPS = {
     "probe": step_probe,
     "extract": step_extract,
     "clean": step_clean,
     "segment": step_segment,
     "transcribe": step_transcribe,
+    "gate": step_gate,
 }

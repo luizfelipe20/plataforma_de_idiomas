@@ -247,7 +247,7 @@ class PipelineTests(MediaTestCase):
         self.assertIsNone(pipeline.claim_next())  # não é reservado duas vezes
         self.assertTrue(pipeline.process(claimed))
         attempts = dict(media.steps.values_list("name", "attempts"))
-        self.assertEqual(attempts, {"probe": 1, "extract": 1, "clean": 1, "segment": 1, "transcribe": 2})
+        self.assertEqual(attempts, {"probe": 1, "extract": 1, "clean": 1, "segment": 1, "transcribe": 2, "gate": 1})
 
     def test_stale_processing_goes_back_to_queue(self):
         media = self.upload(make_video(os.path.join(self.media_root, "v.mp4"), 2))
@@ -581,3 +581,95 @@ class TextChunkTreatedAudioTests(MediaTestCase):
         resp, _ = self.audio(self.chunks[1])
         self.assertEqual((resp.status_code, resp["Content-Type"]), (200, "audio/mpeg"))
         self.assertTrue(TextChunk.objects.get(pk=self.chunks[1].pk).audio_clip)
+
+
+class GapTranscriber:
+    """Uma fala de 0,5 s a 1,5 s em cada segmento e um "[Music]" depois (trecho sem fala)."""
+
+    name = "lacunas"
+
+    def transcribe(self, path, language):
+        return [asr.RecognizedCue(0.5, 1.5, "Hello there."), asr.RecognizedCue(2.0, 2.8, "[Music]")]
+
+
+def max_volume(path, start, length):
+    result = subprocess.run(["ffmpeg", "-hide_banner", "-ss", str(start), "-t", str(length), "-i", path,
+                             "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True)
+    return float(result.stderr.split("max_volume:")[1].split("dB")[0])
+
+
+class MusicCueTests(SimpleTestCase):
+    def test_music_only_cues(self):
+        for text in ("[Music]", "♪♪", "(música)", "[Applause] [Music]", "", "..."):
+            self.assertTrue(pipeline.is_music_cue(text), text)
+        for text in ("Music is great.", "Hello.", "♪ We will rock you ♪"):
+            self.assertFalse(pipeline.is_music_cue(text), text)
+
+    def test_gate_expression_is_zero_without_speech(self):
+        from apps.videos import ffmpeg
+
+        self.assertEqual(ffmpeg.gate_expression([]), "0")
+        self.assertTrue(ffmpeg.gate_expression([(1, 2), (5, 6)]).startswith("min(1,"))
+
+
+@skipUnless(HAS_FFMPEG, "FFmpeg não instalado")
+@override_settings(AUDIO_GATE_PADDING_SECONDS=0.1, AUDIO_GATE_MIN_GAP_SECONDS=0.5)
+class MusicGateTests(MediaTestCase):
+    def setUp(self):
+        super().setUp()
+        asr.set_transcriber_override(GapTranscriber())
+        self.media = self.processed(seconds=7)
+        self.segment = self.media.segments.get(index=0)
+
+    def test_speech_intervals_merge_short_pauses(self):
+        TranscriptCue.objects.create(segment=self.segment, media=self.media, index=5, start_seconds=1.7,
+                                     end_seconds=2.0, text="Again.", original_text="Again.")
+        self.assertEqual([(round(a, 2), round(b, 2)) for a, b in pipeline.speech_intervals(self.segment)],
+                         [(0.4, 2.1)])
+
+    def test_parts_without_speech_are_silenced(self):
+        step = self.media.steps.get(name="gate")
+        self.assertEqual(step.status, ProcessingStep.Status.DONE)
+        self.assertIn("sem fala silenciados", step.message)
+        self.assertFalse(self.media.cues.filter(text="[Music]").exists())  # marcação não vira legenda
+        for segment in self.media.segments.all():
+            self.assertTrue(segment.music_gated)
+            path = pipeline.local_path(segment.audio.name)
+            if segment.duration_seconds < 3:
+                continue  # o último segmento do vídeo de teste tem 1 s
+            self.assertGreater(max_volume(path, 0.7, 0.6), -40)  # fala preservada
+            self.assertLess(max_volume(path, 2.0, 0.5), -60)  # música silenciada
+            # A duração não muda: legendas e recortes continuam sincronizados.
+            from apps.videos import ffmpeg
+            self.assertAlmostEqual(ffmpeg.probe(path).duration, segment.duration_seconds, delta=0.1)
+        self.assertEqual(len(os.listdir(os.path.dirname(path))), self.media.segments.count())
+
+    def test_existing_videos_are_gated_from_the_segment_mp3(self):
+        # Vídeo antigo: sem WAV de trabalho, segmentos ainda com a música.
+        MediaSegment.objects.filter(media=self.media).update(music_gated=False)
+        ProcessingStep.objects.filter(media=self.media, name="gate").update(status=ProcessingStep.Status.PENDING)
+        before = self.media.segments.get(index=1).audio.name
+        pipeline.enqueue(self.media)
+        self.assertTrue(pipeline.process(pipeline.claim_next()))
+        segment = self.media.segments.get(index=1)
+        self.assertNotEqual(segment.audio.name, before)
+        self.assertFalse(os.path.exists(pipeline.local_path(before)))
+        self.assertLess(max_volume(pipeline.local_path(segment.audio.name), 2.0, 0.5), -60)
+
+    def test_stored_clips_are_recut_after_gating(self):
+        self.client.post(reverse("videos:media_quiz_create", args=[self.media.pk]), {"preset": "listening", "source": "all"})
+        text = self.media.texts.get()
+        chunk = text.chunks.first()
+        self.assertTrue(chunk.audio_clip)
+        questions = list(Question.objects.filter(quiz__text=text).exclude(audio_clip=""))
+        self.assertTrue(questions)
+        # Recortes antigos, ainda com a música: a etapa os substitui.
+        for clip in [chunk.audio_clip.name] + [q.audio_clip.name for q in questions]:
+            with open(pipeline.local_path(clip), "wb") as fh:
+                fh.write(b"antigo")
+        services.refresh_clips(self.media)
+        chunk.refresh_from_db()
+        self.assertGreater(os.path.getsize(pipeline.local_path(chunk.audio_clip.name)), 100)
+        for question in questions:
+            question.refresh_from_db()
+            self.assertGreater(os.path.getsize(pipeline.local_path(question.audio_clip.name)), 100)

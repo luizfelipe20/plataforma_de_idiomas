@@ -126,6 +126,34 @@ def encode_mp3(wav_in, mp3_out, *, start=None, length=None, duration=None, on_pr
     run(args, duration=duration, on_progress=on_progress)
 
 
+GATE_FADE_SECONDS = 0.25
+
+
+def gate_expression(intervals, fade=GATE_FADE_SECONDS):
+    """
+    Ganho do filtro `volume` (t em segundos): 1 dentro dos intervalos de fala, 0 fora,
+    com rampas de `fade` s. Os intervalos não se sobrepõem, então a soma vale no máximo 1.
+    """
+    if not intervals:
+        return "0"
+    terms = "+".join(
+        f"clip((t-{a - fade:.3f})/{fade},0,1)*clip(({b + fade:.3f}-t)/{fade},0,1)" for a, b in intervals
+    )
+    return f"min(1,{terms})"
+
+
+def gate_audio(audio_in, mp3_out, intervals, *, start=None, length=None):
+    """MP3 de `audio_in` (ou do trecho start/length) com silêncio fora de `intervals`, tempos da saída."""
+    args = []
+    if start is not None:
+        args += ["-ss", f"{start:.3f}"]
+    if length is not None:
+        args += ["-t", f"{length:.3f}"]
+    args += ["-i", audio_in, "-af", f"volume='{gate_expression(intervals)}':eval=frame",
+             "-ac", "1", "-c:a", "libmp3lame", "-b:a", PLAYBACK_BITRATE, mp3_out]
+    run(args)
+
+
 def cut_clip(audio_in, mp3_out, start, end):
     """
     Recorte de [start, end] (s) de um MP3 já tratado, ou da lista de MP3s consecutivos

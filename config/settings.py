@@ -187,6 +187,12 @@ FFPROBE_BINARY = os.getenv("FFPROBE_BINARY", "ffprobe")
 AUDIO_RNNOISE_MODEL = os.getenv("AUDIO_RNNOISE_MODEL", "/opt/rnnoise/sh.rnnn")
 # Mistura do RNNoise com o sinal original (1 = só o tratado): abaixo de 1 preserva mais a voz.
 AUDIO_RNNOISE_MIX = float(os.getenv("AUDIO_RNNOISE_MIX", "0.85"))
+# Silencia os trechos sem fala (vinhetas, música de abertura e de transição), guiado pelas
+# falas transcritas. Pausas menores que AUDIO_GATE_MIN_GAP_SECONDS entre falas são mantidas,
+# e cada fala ganha AUDIO_GATE_PADDING_SECONDS de folga antes e depois.
+AUDIO_MUSIC_GATE = env_bool("AUDIO_MUSIC_GATE", True)
+AUDIO_GATE_MIN_GAP_SECONDS = float(os.getenv("AUDIO_GATE_MIN_GAP_SECONDS", "1.5"))
+AUDIO_GATE_PADDING_SECONDS = float(os.getenv("AUDIO_GATE_PADDING_SECONDS", "0.3"))
 # ASR_PROVIDER: "faster_whisper" (Whisper local, sem custo por uso) ou "mock" (testes).
 ASR_PROVIDER = os.getenv("ASR_PROVIDER", "faster_whisper")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")

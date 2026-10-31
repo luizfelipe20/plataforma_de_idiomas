@@ -448,6 +448,25 @@ def chunk_clip(chunk):
     return _save_clip(chunk, text.source_media, f"c{chunk.pk}.mp3")
 
 
+def refresh_clips(media):
+    """Recorta de novo, dos segmentos atuais, os áudios já guardados de textos e perguntas do vídeo."""
+    from django.core.files.storage import default_storage
+
+    from apps.quizzes.models import Question
+
+    for text in media.texts.all():
+        for chunk in text.chunks.exclude(audio_clip=""):
+            default_storage.delete(chunk.audio_clip.name)
+        text.chunks.update(audio_clip="")
+        attach_text_clips(text)
+    questions = Question.objects.filter(quiz__text__source_media=media).exclude(audio_clip="")
+    for question in questions.select_related("quiz__text__source_media"):
+        default_storage.delete(question.audio_clip.name)
+        question.audio_clip.name = ""
+        type(question).objects.filter(pk=question.pk).update(audio_clip="")
+        question_clip(question)
+
+
 def attach_text_clips(text):
     """Localiza e recorta, na criação do texto, o áudio tratado de todos os trechos."""
     chunks = list(text.chunks.select_related("text__source_media"))

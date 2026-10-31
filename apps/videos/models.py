@@ -97,6 +97,7 @@ class ProcessingStep(models.Model):
         CLEAN = "clean", "Redução de ruído e música"
         SEGMENT = "segment", "Divisão em segmentos"
         TRANSCRIBE = "transcribe", "Transcrição (legendas)"
+        GATE = "gate", "Remoção dos trechos só de música"
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pendente"
@@ -146,6 +147,8 @@ class MediaSegment(models.Model):
         max_length=10, choices=TranscriptStatus.choices, default=TranscriptStatus.PENDING
     )
     transcript_error = models.TextField(blank=True)
+    # Trechos sem fala (música de abertura e de transição) já silenciados no MP3.
+    music_gated = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["media", "index"]
